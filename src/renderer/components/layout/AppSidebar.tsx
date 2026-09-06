@@ -34,6 +34,7 @@ export const AppSidebar: React.FC = () => {
     { to: '/payments', label: 'Customer Payments', icon: CreditCard },
     { to: '/customers', label: 'Customers & Parties', icon: Users },
     { to: '/purchasing', label: 'Purchasing & Receiving', icon: ShoppingCart },
+    { to: '/purchase-returns', label: 'Purchase Returns', icon: RotateCcw },
     { to: '/supplier-payments', label: 'Supplier Payments', icon: CreditCard },
     { to: '/suppliers', label: 'Suppliers & Vendors', icon: Building2 },
   ];
