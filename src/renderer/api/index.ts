@@ -19,5 +19,4 @@ export * from './customer-payments.api';
 export * from './sales-returns.api';
 export * from './supplier-payments.api';
 export * from './purchase-returns.api';
-
-
+export * from './pricing.api';

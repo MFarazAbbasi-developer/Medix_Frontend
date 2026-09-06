@@ -14,6 +14,7 @@ import {
   ChevronRight,
   CreditCard,
   RotateCcw,
+  Tag,
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { clsx } from 'clsx';
@@ -30,6 +31,7 @@ export const AppSidebar: React.FC = () => {
 
   const businessNavItems = [
     { to: '/sales', label: 'Sales & Invoicing', icon: Receipt },
+    { to: '/pricing', label: 'Pricing & Schemes', icon: Tag },
     { to: '/sales-returns', label: 'Sales Returns', icon: RotateCcw },
     { to: '/payments', label: 'Customer Payments', icon: CreditCard },
     { to: '/customers', label: 'Customers & Parties', icon: Users },

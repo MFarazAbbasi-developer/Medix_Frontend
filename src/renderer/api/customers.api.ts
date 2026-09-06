@@ -3,9 +3,11 @@ import { apiClient, ApiResponse } from './client';
 export type CustomerType =
   | 'RETAIL_PHARMACY'
   | 'HOSPITAL'
+  | 'CLINIC'
+  | 'WHOLESALER'
   | 'DISTRIBUTOR'
-  | 'WALK_IN'
-  | 'INSTITUTIONAL';
+  | 'INSTITUTION'
+  | 'WALK_IN';
 
 export interface Customer {
   id: string;
@@ -135,21 +137,8 @@ export interface UpdateCustomerPayload {
   isActive?: boolean;
 }
 
-export interface CustomerPricingRule {
-  id: string;
-  customerId: string;
-  productId: string;
-  customPrice?: string | number | null;
-  discountPercentage?: string | number | null;
-  isActive: boolean;
-  product?: {
-    id: string;
-    sku: string;
-    name: string;
-    genericName: string;
-    taxPercentage: string | number;
-  };
-}
+import type { CustomerPricingRule } from './pricing.api';
+export type { CustomerPricingRule };
 
 export interface UpsertCustomerPricingPayload {
   productId: string;
