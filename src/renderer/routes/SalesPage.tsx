@@ -41,7 +41,7 @@ import {
   PrintableCompanyInfo,
   PrintableSalesInvoice,
 } from '../components/printing';
-import { useAuthStore } from '../store/authStore';
+import { usePermission } from '../hooks/usePermission';
 import { clsx } from 'clsx';
 
 interface CartItem {
@@ -66,15 +66,15 @@ interface CartItem {
   schemeName?: string;
   reason?: string;
   remarks?: string;
+  allowMrpOverride?: boolean;
+  mrpOverrideReason?: string;
 }
 
 export const SalesPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'POS' | 'INVOICES'>('POS');
-  const user = useAuthStore((s) => s.user);
-  const canOverrideDiscount =
-    user?.roles?.includes('ADMIN') ||
-    user?.permissions?.includes('sales.override_discount') ||
-    false;
+  const { hasPermission } = usePermission();
+  const canOverrideDiscount = hasPermission('sales.override_discount');
+  const canOverrideMrp = hasPermission('sales.override_mrp');
 
   // Master dropdown data
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -105,6 +105,11 @@ export const SalesPage: React.FC = () => {
   const [lineUnitPrice, setLineUnitPrice] = useState<number>(0);
   const [lineDiscountPct, setLineDiscountPct] = useState<number>(0);
   const [lineTaxPct, setLineTaxPct] = useState<number>(0);
+
+  // MRP Override confirmation modal state
+  const [isMrpOverrideModalOpen, setIsMrpOverrideModalOpen] = useState<boolean>(false);
+  const [pendingMrpCartItem, setPendingMrpCartItem] = useState<CartItem | null>(null);
+  const [mrpOverrideReasonInput, setMrpOverrideReasonInput] = useState<string>('');
 
   // Modals state
   const [isTenderModalOpen, setIsTenderModalOpen] = useState<boolean>(false);
@@ -312,10 +317,7 @@ export const SalesPage: React.FC = () => {
       fefoData?.allocation.allocations[0];
 
     const mrp = alloc ? alloc.retailPrice : 0;
-    if (lineUnitPrice > mrp && mrp > 0) {
-      showFeedback('error', `Selling price Rs.${lineUnitPrice} exceeds Maximum Retail Price (MRP) Rs.${mrp}`);
-      return;
-    }
+    const isAboveMrp = lineUnitPrice > mrp && mrp > 0;
 
     const gross = lineBilledQty * lineUnitPrice;
     const discAmt = gross * (lineDiscountPct / 100);
@@ -323,7 +325,7 @@ export const SalesPage: React.FC = () => {
     const taxAmt = taxable * (lineTaxPct / 100);
     const lineTotal = taxable + taxAmt;
 
-    const newItem: CartItem = {
+    const itemCandidate: CartItem = {
       id: `cart-${Date.now()}-${Math.random().toString().slice(2, 6)}`,
       productId: selectedProduct.id,
       productName: selectedProduct.name,
@@ -346,14 +348,55 @@ export const SalesPage: React.FC = () => {
       reason: fefoData?.customerPricing?.reason || undefined,
     };
 
-    setCartItems((prev) => [...prev, newItem]);
+    if (isAboveMrp) {
+      if (!canOverrideMrp) {
+        showFeedback(
+          'error',
+          `Selling price Rs.${lineUnitPrice} exceeds Maximum Retail Price (MRP Rs.${mrp}). MRP override permission (sales.override_mrp) required.`,
+        );
+        return;
+      }
+
+      // Open MRP override confirmation dialog with reason prompt
+      setPendingMrpCartItem(itemCandidate);
+      setMrpOverrideReasonInput('');
+      setIsMrpOverrideModalOpen(true);
+      return;
+    }
+
+    setCartItems((prev) => [...prev, itemCandidate]);
     setSelectedProduct(null);
     setProductSearch('');
     setFefoData(null);
     setLineBilledQty(1);
     setLineBonusQty(0);
     searchInputRef.current?.focus();
-    showFeedback('success', `Added ${newItem.productName} to cart.`);
+    showFeedback('success', `Added ${itemCandidate.productName} to cart.`);
+  };
+
+  const handleConfirmMrpOverride = () => {
+    if (!mrpOverrideReasonInput.trim()) {
+      showFeedback('error', 'Please provide a valid justification reason for the MRP override.');
+      return;
+    }
+    if (pendingMrpCartItem) {
+      const finalItem: CartItem = {
+        ...pendingMrpCartItem,
+        allowMrpOverride: true,
+        mrpOverrideReason: mrpOverrideReasonInput.trim(),
+        reason: `MRP Override (${mrpOverrideReasonInput.trim()})`,
+      };
+      setCartItems((prev) => [...prev, finalItem]);
+      setSelectedProduct(null);
+      setProductSearch('');
+      setFefoData(null);
+      setLineBilledQty(1);
+      setLineBonusQty(0);
+      setIsMrpOverrideModalOpen(false);
+      setPendingMrpCartItem(null);
+      searchInputRef.current?.focus();
+      showFeedback('success', `Added ${finalItem.productName} with authorized MRP override.`);
+    }
   };
 
   const handleRemoveCartItem = (id: string) => {
@@ -380,6 +423,7 @@ export const SalesPage: React.FC = () => {
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
   const currentCustBalance = Number(selectedCustomer?.currentBalance || 0);
   const custCreditLimit = Number(selectedCustomer?.creditLimit || 0);
+  const enforceCreditLimit = settingsMap['ENFORCE_CREDIT_LIMIT'] === 'true';
   const isCreditExceeded =
     paymentMethod === 'CREDIT_ACCOUNT' &&
     currentCustBalance + netTotal > custCreditLimit &&
@@ -395,8 +439,8 @@ export const SalesPage: React.FC = () => {
       showFeedback('error', 'Please select a dispatch warehouse.');
       return;
     }
-    if (paymentMethod === 'CREDIT_ACCOUNT' && isCreditExceeded) {
-      showFeedback('error', 'Credit limit exceeded for this customer.');
+    if (paymentMethod === 'CREDIT_ACCOUNT' && isCreditExceeded && enforceCreditLimit) {
+      showFeedback('error', 'Credit limit exceeded for this customer. Checkout is blocked by system policy (ENFORCE_CREDIT_LIMIT=true).');
       return;
     }
 
@@ -449,6 +493,8 @@ export const SalesPage: React.FC = () => {
           unitPrice: it.unitPrice,
           discountPercentage: it.discountPercentage,
           taxPercentage: it.taxPercentage,
+          allowMrpOverride: it.allowMrpOverride,
+          mrpOverrideReason: it.mrpOverrideReason,
         })),
         payments: paymentsPayload,
       });
@@ -461,7 +507,12 @@ export const SalesPage: React.FC = () => {
       if (isParkDraft) {
         showFeedback('success', `Draft invoice saved (${res.draftNumber || 'Parked'}).`);
       } else {
-        showFeedback('success', `Sales Invoice ${res.invoiceNumber} posted successfully.`);
+        const creditWarnings = (res as any)?.creditWarnings;
+        if (creditWarnings && creditWarnings.length > 0) {
+          showFeedback('success', `Sales Invoice ${res.invoiceNumber} posted. Advisory: ${creditWarnings.join(' | ')}`);
+        } else {
+          showFeedback('success', `Sales Invoice ${res.invoiceNumber} posted successfully.`);
+        }
         // Open receipt modal
         const fullInv = await salesApi.getInvoiceById(res.id);
         setReceiptInvoice(fullInv);
@@ -700,7 +751,9 @@ export const SalesPage: React.FC = () => {
                     <span
                       className={`font-bold ${
                         isCreditExceeded
-                          ? 'text-rose-600'
+                          ? enforceCreditLimit
+                            ? 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200'
+                            : 'text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200'
                           : Number(selectedCustomer.currentBalance) > 0
                           ? 'text-amber-700'
                           : 'text-emerald-700'
@@ -710,6 +763,11 @@ export const SalesPage: React.FC = () => {
                       {Number(selectedCustomer.currentBalance).toLocaleString('en-PK', {
                         minimumFractionDigits: 2,
                       })}
+                      {isCreditExceeded && (
+                        <span className="ml-1.5 text-[10px] uppercase font-extrabold">
+                          {enforceCreditLimit ? '[BLOCKED: Over Limit]' : '[WARNING: Over Limit]'}
+                        </span>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -775,11 +833,31 @@ export const SalesPage: React.FC = () => {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {fefoLoading && (
+                      {fefoLoading ? (
                         <span className="text-[11px] text-brand-600 flex items-center gap-1 font-medium">
                           <RefreshCw className="h-3 w-3 animate-spin" />
                           Evaluating FEFO batches...
                         </span>
+                      ) : (
+                        <div className="flex items-center gap-2 text-xs">
+                          {fefoData?.allocation && (
+                            <>
+                              <span className="px-2 py-0.5 rounded font-bold text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Saleable Stock:{' '}
+                                {fefoData.allocation.allocations.reduce(
+                                  (acc, a) => acc + (a.availableQuantity || 0),
+                                  0,
+                                )}{' '}
+                                units
+                              </span>
+                              {fefoData.allocation.shortfall > 0 && (
+                                <span className="px-2 py-0.5 rounded font-bold text-[11px] bg-rose-50 text-rose-700 border border-rose-200">
+                                  Shortfall: {fefoData.allocation.shortfall} units
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -790,38 +868,44 @@ export const SalesPage: React.FC = () => {
                       <p className="text-[10px] font-bold uppercase text-charcoal-500 mb-1">
                         Earliest Expiring Available Batches (FEFO):
                       </p>
-                      <div className="flex flex-wrap gap-2">
-                        {fefoData.allocation.allocations.map((a) => (
-                          <div
-                            key={a.batchId}
-                            onClick={() => {
-                              setLineBatchId(a.batchId);
-                              setLineUnitPrice(
-                                defaultPricingBase === 'MRP' ? a.retailPrice : a.tradePrice,
-                              );
-                            }}
-                            className={`px-2.5 py-1.5 rounded-md border text-xs cursor-pointer transition-all ${
-                              lineBatchId === a.batchId
-                                ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
-                                : 'bg-white text-charcoal-700 border-surface-border hover:border-brand-300'
-                            }`}
-                          >
-                            <div className="font-bold flex items-center gap-1.5">
-                              <span>Batch: {a.batchNumber}</span>
-                              <span className="text-[10px] opacity-85">
-                                (Avail: {a.availableQuantity})
-                              </span>
+                      {fefoData.allocation.allocations.length === 0 ? (
+                        <p className="text-xs text-rose-600 font-medium py-1">
+                          No active, unexpired, or quarantined stock available for this product in warehouse.
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {fefoData.allocation.allocations.map((a) => (
+                            <div
+                              key={a.batchId}
+                              onClick={() => {
+                                setLineBatchId(a.batchId);
+                                setLineUnitPrice(
+                                  defaultPricingBase === 'MRP' ? a.retailPrice : a.tradePrice,
+                                );
+                              }}
+                              className={`px-2.5 py-1.5 rounded-md border text-xs cursor-pointer transition-all ${
+                                lineBatchId === a.batchId
+                                  ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
+                                  : 'bg-white text-charcoal-700 border-surface-border hover:border-brand-300'
+                              }`}
+                            >
+                              <div className="font-bold flex items-center gap-1.5">
+                                <span>Batch: {a.batchNumber}</span>
+                                <span className="text-[10px] opacity-85">
+                                  (Avail: {a.availableQuantity})
+                                </span>
+                              </div>
+                              <div className="text-[10px] opacity-90 flex items-center gap-2 mt-0.5">
+                                <span>Exp: {new Date(a.expiryDate).toLocaleDateString('en-GB')}</span>
+                                <span>•</span>
+                                <span>TP: Rs.{a.tradePrice}</span>
+                                <span>•</span>
+                                <span>MRP: Rs.{a.retailPrice}</span>
+                              </div>
                             </div>
-                            <div className="text-[10px] opacity-90 flex items-center gap-2 mt-0.5">
-                              <span>Exp: {new Date(a.expiryDate).toLocaleDateString('en-GB')}</span>
-                              <span>•</span>
-                              <span>TP: Rs.{a.tradePrice}</span>
-                              <span>•</span>
-                              <span>MRP: Rs.{a.retailPrice}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1015,6 +1099,11 @@ export const SalesPage: React.FC = () => {
                               {item.schemeName && (
                                 <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
                                   {item.schemeName}
+                                </span>
+                              )}
+                              {item.allowMrpOverride && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300" title={`Reason: ${item.mrpOverrideReason || 'Authorized'}`}>
+                                  MRP OVERRIDE
                                 </span>
                               )}
                             </div>
@@ -1609,6 +1698,93 @@ export const SalesPage: React.FC = () => {
                   disabled={!cancellationReason.trim()}
                 >
                   Confirm Cancellation
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MRP Override Confirmation Modal */}
+      {isMrpOverrideModalOpen && pendingMrpCartItem && (
+        <div className="fixed inset-0 z-50 bg-charcoal-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl border border-amber-300 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border bg-amber-50">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+                <h2 className="text-base font-bold text-amber-900">
+                  MRP Ceiling Override Authorization
+                </h2>
+              </div>
+              <button
+                onClick={() => {
+                  setIsMrpOverrideModalOpen(false);
+                  setPendingMrpCartItem(null);
+                  setMrpOverrideReasonInput('');
+                }}
+                className="p-1 rounded-md text-charcoal-400 hover:text-charcoal-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-3 text-xs">
+              <div className="p-3 bg-amber-50/60 rounded border border-amber-200 space-y-1">
+                <p className="font-bold text-charcoal-900">
+                  {pendingMrpCartItem.productName}
+                </p>
+                <div className="flex justify-between text-charcoal-700">
+                  <span>Entered Unit Rate:</span>
+                  <strong className="text-rose-600 font-mono">
+                    PKR {pendingMrpCartItem.unitPrice.toFixed(2)}
+                  </strong>
+                </div>
+                <div className="flex justify-between text-charcoal-700">
+                  <span>Product MRP Ceiling:</span>
+                  <strong className="text-charcoal-900 font-mono">
+                    PKR {pendingMrpCartItem.retailPrice?.toFixed(2) || 'N/A'}
+                  </strong>
+                </div>
+              </div>
+
+              <p className="text-charcoal-600">
+                Charging above the Maximum Retail Price (MRP) violates standard drug pricing regulations unless explicitly authorized. An audit record will be logged with your user credentials.
+              </p>
+
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                  Override Justification / Reason *
+                </label>
+                <Input
+                  type="text"
+                  required
+                  placeholder="e.g. Special imported formulation, government emergency surcharge"
+                  value={mrpOverrideReasonInput}
+                  onChange={(e) => setMrpOverrideReasonInput(e.target.value)}
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-surface-border">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsMrpOverrideModalOpen(false);
+                    setPendingMrpCartItem(null);
+                    setMrpOverrideReasonInput('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleConfirmMrpOverride}
+                  disabled={!mrpOverrideReasonInput.trim()}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                >
+                  Authorize & Add Line
                 </Button>
               </div>
             </div>
