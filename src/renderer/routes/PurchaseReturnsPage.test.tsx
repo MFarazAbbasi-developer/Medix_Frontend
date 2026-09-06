@@ -4,6 +4,8 @@ import { PurchaseReturnsPage } from './PurchaseReturnsPage';
 import { purchaseReturnsApi } from '../api/purchase-returns.api';
 import * as purchasingApiModule from '../api/purchasing.api';
 import * as warehousesApiModule from '../api/warehouses.api';
+import { organizationApi } from '../api/organization.api';
+import { settingsApi } from '../api/settings.api';
 
 describe('PurchaseReturnsPage Component', () => {
   const mockSupplier = {
@@ -145,6 +147,14 @@ describe('PurchaseReturnsPage Component', () => {
       mockWarehouseStandard,
       mockWarehouseQuarantine,
     ] as any);
+
+    vi.spyOn(organizationApi, 'getOrganization').mockResolvedValue({
+      id: 'org-1',
+      name: 'Farmax Pharmaceuticals',
+      legalName: 'Farmax Pharma Distribution (Pvt) Ltd',
+    } as any);
+
+    vi.spyOn(settingsApi, 'getSettings').mockResolvedValue([] as any);
 
     vi.spyOn(purchaseReturnsApi, 'getReturnableGrn').mockResolvedValue({
       grn: {

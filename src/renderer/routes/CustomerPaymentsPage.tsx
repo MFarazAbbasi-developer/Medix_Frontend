@@ -27,8 +27,16 @@ import {
   PaymentMethod,
   CustomerPaymentStatus,
   getCustomers,
+  organizationApi,
+  settingsApi,
   Customer,
 } from '../api';
+import {
+  DocumentPrintModal,
+  CustomerPaymentReceiptTemplate,
+  PrintableCompanyInfo,
+  PrintableCustomerPayment,
+} from '../components/printing';
 
 export const CustomerPaymentsPage: React.FC = () => {
   const [payments, setPayments] = useState<CustomerPayment[]>([]);
@@ -85,7 +93,11 @@ export const CustomerPaymentsPage: React.FC = () => {
 
   // Details / Print Modal State
   const [viewingPayment, setViewingPayment] = useState<CustomerPayment | null>(null);
-  const [printLayout, setPrintLayout] = useState<'A4' | 'THERMAL'>('A4');
+  const [company, setCompany] = useState<PrintableCompanyInfo>({
+    name: 'MEDIX Pharmacy',
+    legalName: 'MEDIX Pharma Distribution',
+  });
+  const [settingsMap, setSettingsMap] = useState<Record<string, string>>({});
 
   // Cancel Modal State
   const [cancellingPayment, setCancellingPayment] = useState<CustomerPayment | null>(null);
@@ -121,17 +133,39 @@ export const CustomerPaymentsPage: React.FC = () => {
     }
   }, [search, methodFilter, statusFilter, startDate, endDate, currentPage]);
 
-  // Load Customers for dropdown
+  // Load Customers, Organization & Settings for dropdown and printing
   useEffect(() => {
-    const fetchCustomers = async () => {
+    const fetchAuxData = async () => {
       try {
-        const res = await getCustomers({ limit: 100, isActive: true });
+        const [res, orgRes, settingsRes] = await Promise.all([
+          getCustomers({ limit: 100, isActive: true }),
+          organizationApi.getOrganization().catch(() => null),
+          settingsApi.getSettings().catch(() => ({ items: [], map: {} })),
+        ]);
         setCustomers(res.items || []);
+
+        if (orgRes) {
+          setCompany({
+            name: orgRes.name,
+            legalName: orgRes.legalName || orgRes.name,
+            address: orgRes.address,
+            city: orgRes.city,
+            phone: orgRes.phone,
+            email: orgRes.email,
+            ntn: orgRes.ntn,
+            strn: orgRes.strn,
+            drugSaleLicenseNo: orgRes.drugSaleLicenseNo,
+          });
+        }
+
+        if (settingsRes?.map) {
+          setSettingsMap(settingsRes.map);
+        }
       } catch (err) {
-        console.error('Failed to load customers', err);
+        console.error('Failed to load aux data', err);
       }
     };
-    fetchCustomers();
+    fetchAuxData();
   }, []);
 
   useEffect(() => {
@@ -1095,316 +1129,52 @@ export const CustomerPaymentsPage: React.FC = () => {
       {/* VOUCHER / PRINT PREVIEW MODAL */}
       {/* ========================================================================= */}
       {viewingPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="relative w-full max-w-3xl max-h-[90vh] bg-white rounded-xl shadow-2xl border border-surface-border flex flex-col overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-3.5 border-b border-surface-border bg-surface-muted/40 print:hidden">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-brand-600" />
-                <h3 className="text-sm font-bold text-charcoal-900">
-                  Payment Receipt Voucher — {viewingPayment.paymentNumber}
-                </h3>
-              </div>
+        <DocumentPrintModal
+          isOpen={true}
+          onClose={() => setViewingPayment(null)}
+          title={`Payment Receipt Voucher — ${viewingPayment.paymentNumber}`}
+          subtitle={`Customer: ${viewingPayment.customer?.name || 'Customer'} • Date: ${new Date(viewingPayment.paymentDate).toLocaleDateString('en-GB')}`}
+          defaultLayout="A4"
+          allowThermalToggle={true}
+        >
+          {(layout) => {
+            const printableData: PrintableCustomerPayment = {
+              voucherNumber: viewingPayment.paymentNumber,
+              paymentDate: new Date(viewingPayment.paymentDate).toLocaleDateString('en-GB'),
+              paymentMethod: viewingPayment.paymentMethod.replace('_', ' '),
+              referenceNumber: viewingPayment.referenceNumber || null,
+              bankName: viewingPayment.bankName || null,
+              customer: {
+                name: viewingPayment.customer?.name || 'Walk-in Customer',
+                code: viewingPayment.customer?.code || null,
+                address: viewingPayment.customer?.address || null,
+                city: viewingPayment.customer?.city || null,
+                phone: viewingPayment.customer?.phone || null,
+              },
+              amount: Number(viewingPayment.amount || 0),
+              allocations: (viewingPayment.allocations || []).map((a) => ({
+                documentNumber: a.salesInvoice?.invoiceNumber || a.salesInvoiceId,
+                documentDate: a.salesInvoice?.invoiceDate
+                  ? new Date(a.salesInvoice.invoiceDate).toLocaleDateString('en-GB')
+                  : '',
+                totalDocumentAmount: Number(a.salesInvoice?.netTotal || 0),
+                previousBalance: Number(a.salesInvoice?.netTotal || 0),
+                allocatedAmount: Number(a.amountAllocated || 0),
+                remainingBalance: Math.max(0, Number(a.salesInvoice?.netTotal || 0) - Number(a.amountAllocated || 0)),
+              })),
+              notes: viewingPayment.notes || null,
+              footerNotes: settingsMap['receipt_footer_notes'] || null,
+            };
 
-              <div className="flex items-center gap-2">
-                <div className="flex items-center rounded-lg border border-charcoal-200 p-0.5 bg-white text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setPrintLayout('A4')}
-                    className={`px-2.5 py-1 rounded font-medium ${
-                      printLayout === 'A4'
-                        ? 'bg-brand-50 text-brand-700 font-semibold'
-                        : 'text-charcoal-600 hover:text-charcoal-900'
-                    }`}
-                  >
-                    A4 Voucher
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPrintLayout('THERMAL')}
-                    className={`px-2.5 py-1 rounded font-medium ${
-                      printLayout === 'THERMAL'
-                        ? 'bg-brand-50 text-brand-700 font-semibold'
-                        : 'text-charcoal-600 hover:text-charcoal-900'
-                    }`}
-                  >
-                    Thermal 80mm
-                  </button>
-                </div>
-
-                <Button
-                  size="sm"
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 text-xs bg-brand-600 hover:bg-brand-700 text-white font-semibold"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print</span>
-                </Button>
-
-                <button
-                  type="button"
-                  onClick={() => setViewingPayment(null)}
-                  className="p-1.5 rounded-lg text-charcoal-400 hover:text-charcoal-700 hover:bg-surface-muted"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Printable Document Body */}
-            <div className="flex-1 overflow-y-auto p-6 bg-charcoal-50/40 print:p-0 print:bg-white">
-              {printLayout === 'A4' ? (
-                /* Standard A4 Formal Receipt Voucher */
-                <div className="max-w-2xl mx-auto bg-white p-8 border border-surface-border shadow-sm rounded-lg print:border-none print:shadow-none print:p-0">
-                  {/* Voucher Header */}
-                  <div className="border-b-2 border-charcoal-800 pb-4 mb-6 flex justify-between items-start">
-                    <div>
-                      <h2 className="text-xl font-bold tracking-tight text-charcoal-900">
-                        MEDIX PHARMA DISTRIBUTION
-                      </h2>
-                      <p className="text-xs text-charcoal-600">
-                        Main Distribution Hub, Sector 15, Korangi Industrial Area, Karachi
-                      </p>
-                      <p className="text-xs text-charcoal-500 font-mono">
-                        Phone: +92-21-35000000 | NTN: 7100234-5 | STRN: 17-00-7100-234-11
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="inline-block px-3 py-1 bg-charcoal-900 text-white font-bold text-xs rounded uppercase tracking-wider mb-1">
-                        OFFICIAL PAYMENT RECEIPT
-                      </div>
-                      <div className="font-mono text-sm font-bold text-charcoal-900">
-                        {viewingPayment.paymentNumber}
-                      </div>
-                      <div className="text-xs text-charcoal-500">
-                        Date:{' '}
-                        {new Date(viewingPayment.paymentDate).toLocaleDateString('en-PK', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Customer & Payment Meta */}
-                  <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-surface-muted/50 border border-surface-border text-xs mb-6">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-charcoal-400 block mb-0.5">
-                        Received From
-                      </span>
-                      <div className="font-bold text-charcoal-900 text-sm">
-                        {viewingPayment.customer?.name}
-                      </div>
-                      <div className="text-charcoal-600 font-mono text-[11px]">
-                        Customer Code: {viewingPayment.customer?.code}
-                      </div>
-                      {viewingPayment.customer?.address && (
-                        <div className="text-charcoal-500 text-[11px] mt-0.5">
-                          {viewingPayment.customer?.address}
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-1 text-right">
-                      <div>
-                        <span className="text-charcoal-500">Payment Mode:</span>{' '}
-                        <span className="font-semibold text-charcoal-900">
-                          {viewingPayment.paymentMethod.replace('_', ' ')}
-                        </span>
-                      </div>
-                      {viewingPayment.referenceNumber && (
-                        <div>
-                          <span className="text-charcoal-500">Ref / Cheque #:</span>{' '}
-                          <span className="font-mono font-bold text-charcoal-900">
-                            {viewingPayment.referenceNumber}
-                          </span>
-                        </div>
-                      )}
-                      {viewingPayment.bankName && (
-                        <div>
-                          <span className="text-charcoal-500">Bank:</span>{' '}
-                          <span className="font-medium text-charcoal-900">
-                            {viewingPayment.bankName}
-                          </span>
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-charcoal-500">Status:</span>{' '}
-                        <span
-                          className={`font-bold ${
-                            viewingPayment.status === 'POSTED'
-                              ? 'text-emerald-700'
-                              : 'text-rose-700'
-                          }`}
-                        >
-                          {viewingPayment.status}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Invoice Allocations Table */}
-                  {viewingPayment.allocations && viewingPayment.allocations.length > 0 ? (
-                    <div className="mb-6">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-charcoal-700 mb-2">
-                        Settled Invoices Breakdown
-                      </h4>
-                      <table className="w-full text-left text-xs border border-charcoal-200">
-                        <thead className="bg-surface-muted text-charcoal-700 font-semibold border-b border-charcoal-200">
-                          <tr>
-                            <th className="py-2 px-3">Invoice Number</th>
-                            <th className="py-2 px-3 text-right">Invoice Net Total</th>
-                            <th className="py-2 px-3 text-right">Amount Settled</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-charcoal-200">
-                          {viewingPayment.allocations.map((a) => (
-                            <tr key={a.id}>
-                              <td className="py-2 px-3 font-mono font-medium text-charcoal-900">
-                                {a.salesInvoice?.invoiceNumber || a.salesInvoiceId}
-                              </td>
-                              <td className="py-2 px-3 text-right text-charcoal-600">
-                                Rs.{' '}
-                                {Number(a.salesInvoice?.netTotal || 0).toLocaleString('en-PK', {
-                                  minimumFractionDigits: 2,
-                                })}
-                              </td>
-                              <td className="py-2 px-3 text-right font-bold text-emerald-700">
-                                Rs.{' '}
-                                {Number(a.amountAllocated).toLocaleString('en-PK', {
-                                  minimumFractionDigits: 2,
-                                })}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="p-3.5 rounded border border-dashed border-amber-300 bg-amber-50/50 text-amber-800 text-xs text-center mb-6">
-                      This receipt was recorded as an <strong>Unallocated Advance Deposit</strong>{' '}
-                      and added directly as store credit to the customer ledger.
-                    </div>
-                  )}
-
-                  {/* Financial Total Block */}
-                  <div className="border-t-2 border-charcoal-800 pt-4 mb-8 flex justify-end">
-                    <div className="w-64 space-y-1.5 text-xs">
-                      <div className="flex justify-between text-charcoal-600">
-                        <span>Total Allocated:</span>
-                        <span>
-                          Rs.{' '}
-                          {Number(viewingPayment.allocatedAmount).toLocaleString('en-PK', {
-                            minimumFractionDigits: 2,
-                          })}
-                        </span>
-                      </div>
-                      {Number(viewingPayment.unallocatedAmount) > 0 && (
-                        <div className="flex justify-between text-amber-700 font-medium">
-                          <span>Unallocated Advance:</span>
-                          <span>
-                            Rs.{' '}
-                            {Number(viewingPayment.unallocatedAmount).toLocaleString('en-PK', {
-                              minimumFractionDigits: 2,
-                            })}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex justify-between font-bold text-base text-charcoal-900 pt-1.5 border-t border-charcoal-300">
-                        <span>Total Received:</span>
-                        <span>
-                          Rs.{' '}
-                          {Number(viewingPayment.amount).toLocaleString('en-PK', {
-                            minimumFractionDigits: 2,
-                          })}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Signatures */}
-                  <div className="grid grid-cols-2 gap-12 pt-8 border-t border-charcoal-200 text-xs text-center text-charcoal-500">
-                    <div>
-                      <div className="border-b border-charcoal-400 h-8 mb-1.5" />
-                      <span>Customer Signature / Receiver Stamp</span>
-                    </div>
-                    <div>
-                      <div className="border-b border-charcoal-400 h-8 mb-1.5" />
-                      <span>Authorized Cashier Signature</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* Thermal 80mm POS Receipt Slip */
-                <div className="max-w-[320px] mx-auto bg-white p-4 border border-charcoal-300 rounded shadow-xs font-mono text-xs print:border-none print:p-0">
-                  <div className="text-center pb-2 border-b border-dashed border-charcoal-400">
-                    <h3 className="font-bold text-sm text-charcoal-900">MEDIX PHARMA</h3>
-                    <p className="text-[10px] text-charcoal-600">Distribution Hub, Karachi</p>
-                    <p className="text-[10px] text-charcoal-500">Tel: +92-21-35000000</p>
-                    <div className="font-bold text-xs uppercase mt-1">PAYMENT RECEIPT</div>
-                  </div>
-
-                  <div className="py-2 space-y-0.5 text-[11px] border-b border-dashed border-charcoal-400">
-                    <div className="flex justify-between">
-                      <span>Receipt #:</span>
-                      <span className="font-bold">{viewingPayment.paymentNumber}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Date:</span>
-                      <span>{new Date(viewingPayment.paymentDate).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Customer:</span>
-                      <span className="font-bold truncate max-w-[150px]">
-                        {viewingPayment.customer?.name}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Method:</span>
-                      <span>{viewingPayment.paymentMethod}</span>
-                    </div>
-                    {viewingPayment.referenceNumber && (
-                      <div className="flex justify-between">
-                        <span>Ref #:</span>
-                        <span>{viewingPayment.referenceNumber}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {viewingPayment.allocations && viewingPayment.allocations.length > 0 && (
-                    <div className="py-2 border-b border-dashed border-charcoal-400 text-[10px]">
-                      <div className="font-bold mb-1">INVOICE SETTLEMENTS:</div>
-                      {viewingPayment.allocations.map((a) => (
-                        <div key={a.id} className="flex justify-between">
-                          <span>{a.salesInvoice?.invoiceNumber || a.salesInvoiceId}</span>
-                          <span>Rs. {Number(a.amountAllocated).toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="py-2 space-y-1 text-xs border-b border-dashed border-charcoal-400">
-                    <div className="flex justify-between font-bold text-sm">
-                      <span>AMOUNT PAID:</span>
-                      <span>Rs. {Number(viewingPayment.amount).toFixed(2)}</span>
-                    </div>
-                    {Number(viewingPayment.unallocatedAmount) > 0 && (
-                      <div className="flex justify-between text-[11px] text-amber-700 font-semibold">
-                        <span>ADVANCE CREDIT:</span>
-                        <span>Rs. {Number(viewingPayment.unallocatedAmount).toFixed(2)}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="text-center pt-3 text-[10px] text-charcoal-500">
-                    <p>Thank you for your business!</p>
-                    <p>Generated by Medix by FARMAX</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+            return (
+              <CustomerPaymentReceiptTemplate
+                payment={printableData}
+                company={company}
+                layout={layout}
+              />
+            );
+          }}
+        </DocumentPrintModal>
       )}
 
       {/* ========================================================================= */}

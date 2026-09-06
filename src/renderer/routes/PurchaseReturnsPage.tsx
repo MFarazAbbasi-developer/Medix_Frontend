@@ -28,8 +28,16 @@ import {
   purchasingApi,
   GoodsReceiveNote,
   warehousesApi,
+  organizationApi,
+  settingsApi,
   Warehouse,
 } from '../api';
+import {
+  DocumentPrintModal,
+  PurchaseReturnPrintTemplate,
+  PrintableCompanyInfo,
+  PrintablePurchaseReturn,
+} from '../components/printing';
 
 const REASON_LABELS: Record<PurchaseReturnReason, string> = {
   DAMAGED_IN_TRANSIT: 'Damaged in Transit',
@@ -72,6 +80,11 @@ export const PurchaseReturnsPage: React.FC = () => {
   // Directory Data
   const [grns, setGrns] = useState<GoodsReceiveNote[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [company, setCompany] = useState<PrintableCompanyInfo>({
+    name: 'MEDIX Pharmacy',
+    legalName: 'MEDIX Pharma Distribution',
+  });
+  const [settingsMap, setSettingsMap] = useState<Record<string, string>>({});
 
   // Create Return Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
@@ -100,7 +113,6 @@ export const PurchaseReturnsPage: React.FC = () => {
 
   // View / Print Voucher Modal State
   const [viewingReturn, setViewingReturn] = useState<PurchaseReturn | null>(null);
-  const [printLayout, setPrintLayout] = useState<'A4' | 'THERMAL'>('A4');
 
   // Cancel Modal State
   const [cancellingReturn, setCancellingReturn] = useState<PurchaseReturn | null>(null);
@@ -139,12 +151,36 @@ export const PurchaseReturnsPage: React.FC = () => {
   useEffect(() => {
     const fetchDirectories = async () => {
       try {
-        const [grnRes, whRes] = await Promise.all([
+        const [grnRes, whRes, orgRes, setRes] = await Promise.all([
           purchasingApi.getGoodsReceiveNotes({ status: 'POSTED', limit: 100 }),
           warehousesApi.getWarehouses(),
+          organizationApi.getOrganization().catch(() => null),
+          settingsApi.getSettings().catch(() => null),
         ]);
         setGrns((grnRes as any).items || (grnRes as any).data || (Array.isArray(grnRes) ? grnRes : []));
         setWarehouses(Array.isArray(whRes) ? whRes : (whRes as any).items || (whRes as any).data || []);
+        if (orgRes) {
+          setCompany({
+            name: orgRes.name || 'MEDIX Pharmacy',
+            legalName: orgRes.legalName || orgRes.name,
+            ntn: orgRes.ntn || undefined,
+            strn: orgRes.strn || undefined,
+            drugSaleLicenseNo: orgRes.drugSaleLicenseNo || undefined,
+            address: orgRes.address || undefined,
+            city: orgRes.city || undefined,
+            phone: orgRes.phone || undefined,
+            email: orgRes.email || undefined,
+          });
+        }
+        if (setRes && Array.isArray(setRes)) {
+          const map: Record<string, string> = {};
+          setRes.forEach((s: any) => {
+            if (s.key && s.value !== undefined) {
+              map[s.key] = s.value;
+            }
+          });
+          setSettingsMap(map);
+        }
       } catch (err) {
         console.error('Failed to load initial directories for returns', err);
       }
@@ -1030,194 +1066,65 @@ export const PurchaseReturnsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal 2: View / Print Debit Note Voucher */}
+      {/* Modal 2: DocumentPrintModal for Purchase Return Debit Note */}
       {viewingReturn && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-3xl my-8 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/60">
-              <div className="flex items-center gap-2">
-                <Printer className="w-5 h-5 text-indigo-400" />
-                <h2 className="text-lg font-bold text-white">Purchase Return Voucher (Debit Note)</h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex rounded-md border border-slate-700 bg-slate-950 p-0.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setPrintLayout('A4')}
-                    className={`px-2.5 py-1 rounded ${
-                      printLayout === 'A4' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400'
-                    }`}
-                  >
-                    A4 Voucher
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPrintLayout('THERMAL')}
-                    className={`px-2.5 py-1 rounded ${
-                      printLayout === 'THERMAL' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400'
-                    }`}
-                  >
-                    80mm Thermal
-                  </button>
-                </div>
-                <button
-                  onClick={() => setViewingReturn(null)}
-                  className="text-slate-400 hover:text-white ml-2"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+        <DocumentPrintModal
+          isOpen={!!viewingReturn}
+          onClose={() => setViewingReturn(null)}
+          title={`Purchase Return Debit Note — ${viewingReturn.returnNumber}`}
+          subtitle={`Supplier: ${viewingReturn.supplier?.name || 'Supplier'} • Date: ${new Date(viewingReturn.returnDate).toLocaleDateString('en-GB')}`}
+          defaultLayout="A4"
+          allowThermalToggle={true}
+        >
+          {(layout) => {
+            const printableData: PrintablePurchaseReturn = {
+              returnNumber: viewingReturn.returnNumber,
+              returnDate: new Date(viewingReturn.returnDate).toLocaleDateString('en-GB'),
+              originalGrnNumber: viewingReturn.grn?.grnNumber || null,
+              originalGrnDate: viewingReturn.grn?.receivedDate
+                ? new Date(viewingReturn.grn.receivedDate).toLocaleDateString('en-GB')
+                : null,
+              status: viewingReturn.status,
+              supplier: {
+                name: viewingReturn.supplier?.name || 'Supplier',
+                code: viewingReturn.supplier?.code || null,
+                address: viewingReturn.supplier?.address || null,
+                city: viewingReturn.supplier?.city || null,
+                phone: viewingReturn.supplier?.phone || null,
+                ntn: viewingReturn.supplier?.ntn || null,
+              },
+              lines: (viewingReturn.items || []).map((it, idx) => ({
+                itemNumber: idx + 1,
+                sku: it.product?.sku || '',
+                productName: it.product?.name || 'Unknown Product',
+                batchNumber: it.batchNumber || '',
+                expiryDate: it.expiryDate
+                  ? new Date(it.expiryDate).toLocaleDateString('en-GB')
+                  : '',
+                quantity: Number(it.returnedQuantity || 0),
+                bonusQuantity: Number(it.bonusReturnedQuantity || 0),
+                unitPrice: Number(it.unitCost || 0),
+                reason: REASON_LABELS[viewingReturn.reason] || viewingReturn.reason || null,
+                lineTotal: Number(it.lineTotal || 0),
+              })),
+              subtotal: Number(viewingReturn.subtotal || viewingReturn.netTotal || 0),
+              totalDiscount: Number(viewingReturn.discountAmount || 0),
+              totalTax: Number(viewingReturn.taxAmount || 0),
+              totalDebitAmount: Number(viewingReturn.netTotal || 0),
+              reason: REASON_LABELS[viewingReturn.reason] || viewingReturn.reason || null,
+              approvedBy: (viewingReturn as any).postedByUser?.displayName || null,
+              footerNotes: settingsMap['purchase_return_footer_notes'] || null,
+            };
 
-            {/* Printable Content */}
-            <div className="p-6 overflow-y-auto max-h-[70vh] bg-slate-950 space-y-6">
-              <div
-                id="printable-return-voucher"
-                className={`mx-auto bg-white text-slate-950 p-6 rounded-lg shadow font-sans ${
-                  printLayout === 'THERMAL' ? 'max-w-sm text-xs' : 'max-w-2xl text-sm'
-                }`}
-              >
-                {/* Header */}
-                <div className="text-center border-b pb-4 mb-4">
-                  <h1 className="text-xl font-black tracking-tight uppercase text-indigo-900">
-                    MEDIX PHARMA DISTRIBUTION
-                  </h1>
-                  <p className="text-xs text-slate-600">PURCHASE RETURN / DEBIT NOTE VOUCHER</p>
-                  <div className="mt-2 inline-block px-3 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-900 font-mono font-bold text-xs">
-                    VOUCHER #: {viewingReturn.returnNumber}
-                  </div>
-                </div>
-
-                {/* Metadata Grid */}
-                <div className="grid grid-cols-2 gap-3 text-xs mb-4">
-                  <div>
-                    <span className="text-slate-500 block">Supplier:</span>
-                    <span className="font-bold text-slate-900">{viewingReturn.supplier?.name}</span>
-                    <span className="text-slate-600 block">Code: {viewingReturn.supplier?.code}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-slate-500 block">Return Date:</span>
-                    <span className="font-bold text-slate-900">
-                      {new Date(viewingReturn.returnDate).toLocaleDateString('en-GB')}
-                    </span>
-                    <span className="text-slate-600 block">GRN Ref: {viewingReturn.grn?.grnNumber}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Reason:</span>
-                    <span className="font-semibold text-slate-800">
-                      {REASON_LABELS[viewingReturn.reason] || viewingReturn.reason}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-slate-500 block">Status:</span>
-                    <span
-                      className={`font-bold ${
-                        viewingReturn.status === 'POSTED' ? 'text-emerald-700' : 'text-rose-700'
-                      }`}
-                    >
-                      {viewingReturn.status}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Items List */}
-                <table className="w-full text-left text-xs border-collapse mb-4">
-                  <thead>
-                    <tr className="border-b-2 border-slate-900 bg-slate-100 font-bold">
-                      <th className="py-2 px-1">Item / Batch</th>
-                      <th className="py-2 px-1 text-right">Qty</th>
-                      <th className="py-2 px-1 text-right">Rate</th>
-                      <th className="py-2 px-1 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {viewingReturn.items?.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="py-2 px-1">
-                          <span className="font-semibold block">{item.product?.name || 'Product'}</span>
-                          <span className="text-[10px] text-slate-600 block">
-                            Batch: {item.batchNumber} | {item.stockCondition}
-                          </span>
-                        </td>
-                        <td className="py-2 px-1 text-right font-mono">
-                          {item.returnedQuantity}
-                          {item.bonusReturnedQuantity > 0 && ` +${item.bonusReturnedQuantity}B`}
-                        </td>
-                        <td className="py-2 px-1 text-right font-mono">
-                          Rs. {Number(item.unitCost).toFixed(2)}
-                        </td>
-                        <td className="py-2 px-1 text-right font-mono font-bold">
-                          Rs. {Number(item.lineTotal).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {/* Totals Summary */}
-                <div className="border-t pt-2 space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Subtotal:</span>
-                    <span className="font-mono">Rs. {Number(viewingReturn.subtotal).toFixed(2)}</span>
-                  </div>
-                  {Number(viewingReturn.discountAmount) > 0 && (
-                    <div className="flex justify-between text-slate-600">
-                      <span>Discounts:</span>
-                      <span className="font-mono">-Rs. {Number(viewingReturn.discountAmount).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {Number(viewingReturn.taxAmount) > 0 && (
-                    <div className="flex justify-between text-slate-600">
-                      <span>Taxes:</span>
-                      <span className="font-mono">+Rs. {Number(viewingReturn.taxAmount).toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-bold text-sm border-t pt-1 text-indigo-950">
-                    <span>Net Debit Note Total:</span>
-                    <span className="font-mono">Rs. {Number(viewingReturn.netTotal).toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {viewingReturn.notes && (
-                  <div className="mt-3 p-2 rounded bg-slate-50 border text-[11px] text-slate-600">
-                    <strong>Notes:</strong> {viewingReturn.notes}
-                  </div>
-                )}
-
-                {/* Signatures */}
-                <div className="mt-8 pt-4 border-t grid grid-cols-2 gap-4 text-center text-[10px] text-slate-500">
-                  <div>
-                    <div className="border-b border-dashed border-slate-400 mb-1 h-6"></div>
-                    <span>Prepared By</span>
-                  </div>
-                  <div>
-                    <div className="border-b border-dashed border-slate-400 mb-1 h-6"></div>
-                    <span>Supplier Acknowledgement</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-950/60">
-              <Button
-                variant="secondary"
-                onClick={() => setViewingReturn(null)}
-              >
-                Close
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => window.print()}
-                className="bg-indigo-600 hover:bg-indigo-500 flex items-center gap-2"
-              >
-                <Printer className="w-4 h-4" />
-                Print Voucher
-              </Button>
-            </div>
-          </div>
-        </div>
+            return (
+              <PurchaseReturnPrintTemplate
+                purchaseReturn={printableData}
+                company={company}
+                layout={layout}
+              />
+            );
+          }}
+        </DocumentPrintModal>
       )}
 
       {/* Modal 3: Cancel / Void Purchase Return */}

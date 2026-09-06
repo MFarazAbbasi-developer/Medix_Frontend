@@ -206,10 +206,9 @@ describe('ReportsPage Component', () => {
 
     await waitFor(() => {
       expect(reportsApi.getSalesRegister).toHaveBeenCalled();
+      expect(screen.getByText('INV-2026-0001')).toBeInTheDocument();
+      expect(screen.getByText('Al-Shifa Pharmacy')).toBeInTheDocument();
     });
-
-    expect(screen.getByText('INV-2026-0001')).toBeInTheDocument();
-    expect(screen.getByText('Al-Shifa Pharmacy')).toBeInTheDocument();
   });
 
   it('should navigate to Receivables / Payables and show Customer Aging', async () => {

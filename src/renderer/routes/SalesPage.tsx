@@ -26,6 +26,7 @@ import {
   warehousesApi,
   productsApi,
   settingsApi,
+  organizationApi,
   Customer,
   Warehouse,
   Product,
@@ -34,6 +35,12 @@ import {
   FefoPreviewResponse,
   SalesMetricsResponse,
 } from '../api';
+import {
+  DocumentPrintModal,
+  SalesInvoicePrintTemplate,
+  PrintableCompanyInfo,
+  PrintableSalesInvoice,
+} from '../components/printing';
 import { useAuthStore } from '../store/authStore';
 import { clsx } from 'clsx';
 
@@ -108,9 +115,15 @@ export const SalesPage: React.FC = () => {
   const [tenderBankRef, setTenderBankRef] = useState<string>('');
   const [isPosting, setIsPosting] = useState<boolean>(false);
 
+  // Company & Settings for printable invoices
+  const [company, setCompany] = useState<PrintableCompanyInfo>({
+    name: 'MEDIX Pharmacy',
+    legalName: 'MEDIX Pharma Distribution',
+  });
+  const [settingsMap, setSettingsMap] = useState<Record<string, string>>({});
+
   // Receipt Preview state
   const [receiptInvoice, setReceiptInvoice] = useState<SalesInvoice | null>(null);
-  const [receiptFormat, setReceiptFormat] = useState<'80mm' | 'A4'>('80mm');
 
   // Invoices History state
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
@@ -137,12 +150,13 @@ export const SalesPage: React.FC = () => {
   // Load master data
   const loadMasterData = useCallback(async () => {
     try {
-      const [custRes, whData, prodRes, settingsRes, metricsRes] = await Promise.all([
+      const [custRes, whData, prodRes, settingsRes, metricsRes, orgRes] = await Promise.all([
         customersApi.getCustomers({ isActive: true, limit: 300 }),
         warehousesApi.getWarehouses(),
         productsApi.getProducts({ limit: 500, isActive: 'true' }),
         settingsApi.getSettings().catch(() => ({ items: [], map: {} })),
         salesApi.getSalesMetrics().catch(() => null),
+        organizationApi.getOrganization().catch(() => null),
       ]);
 
       const custList = custRes?.items || [];
@@ -150,6 +164,24 @@ export const SalesPage: React.FC = () => {
       setWarehouses(whData || []);
       setProducts(prodRes?.items || []);
       setMetrics(metricsRes);
+
+      if (orgRes) {
+        setCompany({
+          name: orgRes.name,
+          legalName: orgRes.legalName || orgRes.name,
+          address: orgRes.address,
+          city: orgRes.city,
+          phone: orgRes.phone,
+          email: orgRes.email,
+          ntn: orgRes.ntn,
+          strn: orgRes.strn,
+          drugSaleLicenseNo: orgRes.drugSaleLicenseNo,
+        });
+      }
+
+      if (settingsRes?.map) {
+        setSettingsMap(settingsRes.map);
+      }
 
       // Set default warehouse
       const defaultWh = whData.find((w) => w.isDefault) || whData[0];
@@ -178,6 +210,18 @@ export const SalesPage: React.FC = () => {
   useEffect(() => {
     loadMasterData();
   }, [loadMasterData]);
+
+  // Fast keyboard navigation for sales counter (Alt+S or F2 to focus product search)
+  useEffect(() => {
+    const handleKeyNav = (e: KeyboardEvent) => {
+      if (activeTab === 'POS' && (e.key === 'F2' || (e.altKey && e.key.toLowerCase() === 's'))) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyNav);
+    return () => window.removeEventListener('keydown', handleKeyNav);
+  }, [activeTab]);
 
   // Load invoices history
   const loadInvoices = useCallback(async () => {
@@ -1429,141 +1473,80 @@ export const SalesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Invoice / Receipt Print Preview Modal */}
+      {/* Standardized Invoice & Thermal Receipt Print Modal */}
       {receiptInvoice && (
-        <div className="fixed inset-0 z-50 bg-charcoal-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl border border-surface-border max-w-md w-full overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border bg-surface-muted/30">
-              <span className="text-xs font-bold text-charcoal-800 flex items-center gap-1.5">
-                <Printer className="h-4 w-4 text-brand-600" />
-                Receipt Preview ({receiptFormat})
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() =>
-                    setReceiptFormat(receiptFormat === '80mm' ? 'A4' : '80mm')
-                  }
-                  className="text-[10px] px-2 py-0.5 rounded border border-surface-border font-medium hover:bg-surface-muted"
-                >
-                  Switch to {receiptFormat === '80mm' ? 'A4' : '80mm'}
-                </button>
-                <button
-                  onClick={() => setReceiptInvoice(null)}
-                  className="p-1 rounded text-charcoal-400 hover:text-charcoal-700"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
+        <DocumentPrintModal
+          isOpen={true}
+          onClose={() => setReceiptInvoice(null)}
+          title={`Sales Invoice — ${receiptInvoice.invoiceNumber || receiptInvoice.draftNumber}`}
+          subtitle={`${receiptInvoice.customer?.name || 'Walk-in Customer'} • ${new Date(receiptInvoice.invoiceDate).toLocaleDateString('en-GB')}`}
+          defaultLayout="THERMAL"
+          allowThermalToggle={true}
+        >
+          {(layout) => {
+            const printableData: PrintableSalesInvoice = {
+              invoiceNumber: receiptInvoice.invoiceNumber || receiptInvoice.draftNumber || 'INV-DRAFT',
+              invoiceDate: new Date(receiptInvoice.invoiceDate).toLocaleDateString('en-GB'),
+              dueDate: (receiptInvoice as any).dueDate
+                ? new Date((receiptInvoice as any).dueDate).toLocaleDateString('en-GB')
+                : null,
+              status: receiptInvoice.status,
+              paymentTerms: receiptInvoice.paymentMethod,
+              salesmanName:
+                (receiptInvoice as any).salesman?.displayName ||
+                (receiptInvoice as any).createdByUser?.displayName ||
+                null,
+              customer: {
+                name: receiptInvoice.customer?.name || 'Walk-in Customer',
+                code: receiptInvoice.customer?.code || null,
+                address: receiptInvoice.customer?.address || null,
+                city: receiptInvoice.customer?.city || null,
+                phone: receiptInvoice.customer?.phone || null,
+                ntn: receiptInvoice.customer?.ntn || null,
+                drugSaleLicenseNo: receiptInvoice.customer?.drugSaleLicenseNo || null,
+              },
+              lines: (receiptInvoice.items || []).map((it, idx) => ({
+                itemNumber: idx + 1,
+                sku: it.product?.sku || (it as any).sku || '',
+                productName: it.product?.name || (it as any).productName || 'Unknown Product',
+                batchNumber: it.batch?.batchNumber || (it as any).batchNumber || 'STANDARD',
+                expiryDate: it.batch?.expiryDate
+                  ? new Date(it.batch.expiryDate).toLocaleDateString('en-GB')
+                  : (it as any).expiryDate
+                  ? new Date((it as any).expiryDate).toLocaleDateString('en-GB')
+                  : 'N/A',
+                quantity: Number(it.billedQuantity || 0),
+                bonusQuantity: Number(it.bonusQuantity || 0),
+                unitPrice: Number(it.unitPrice || 0),
+                discountPercent: Number(it.discountPercentage || 0),
+                discountAmount: Number(it.discountAmount || 0),
+                salesTaxPercent: Number(it.taxPercentage || 0),
+                salesTaxAmount: Number(it.taxAmount || 0),
+                lineTotal: Number(it.lineTotal || 0),
+              })),
+              subtotal: Number(receiptInvoice.subtotal || 0),
+              totalDiscount: Number(receiptInvoice.discountAmount || 0),
+              totalTax: Number(receiptInvoice.taxAmount || 0),
+              grandTotal: Number(receiptInvoice.netTotal || 0),
+              amountPaid: Number(receiptInvoice.paidAmount || 0),
+              balanceDue: Number(receiptInvoice.balanceAmount || 0),
+              notes: receiptInvoice.notes || null,
+              footerNotes:
+                settingsMap['invoice_footer_notes'] ||
+                settingsMap['sales_invoice_footer'] ||
+                null,
+              termsAndConditions: settingsMap['terms_and_conditions'] || null,
+            };
 
-            {/* Thermal 80mm Receipt Layout */}
-            <div className="p-6 font-mono text-xs text-charcoal-900 space-y-3 bg-white max-h-[70vh] overflow-y-auto">
-              <div className="text-center space-y-0.5 border-b border-dashed border-charcoal-400 pb-3">
-                <h3 className="text-sm font-extrabold uppercase">
-                  MEDIX PHARMACY
-                </h3>
-                <p className="text-[10px]">Head Office & Distribution Centre</p>
-                <p className="text-[10px]">DSL #: DSL-KAR-99012 • NTN: 1234567-8</p>
-                <p className="text-[10px] font-bold mt-1">
-                  TAX INVOICE / CASH RECEIPT
-                </p>
-              </div>
-
-              <div className="text-[11px] space-y-0.5 border-b border-dashed border-charcoal-300 pb-2">
-                <div className="flex justify-between">
-                  <span>Inv #: {receiptInvoice.invoiceNumber}</span>
-                  <span>{new Date(receiptInvoice.invoiceDate).toLocaleDateString('en-GB')}</span>
-                </div>
-                <div>Customer: {receiptInvoice.customer?.name}</div>
-                <div>Terms: {receiptInvoice.paymentMethod}</div>
-              </div>
-
-              {/* Items List */}
-              <div className="border-b border-dashed border-charcoal-300 pb-2 space-y-2">
-                {receiptInvoice.items?.map((it) => (
-                  <div key={it.id} className="text-[11px]">
-                    <div className="font-bold flex justify-between">
-                      <span>{it.product?.name}</span>
-                      <span>Rs.{Number(it.lineTotal).toFixed(2)}</span>
-                    </div>
-                    <div className="text-[10px] text-charcoal-600 flex justify-between">
-                      <span>
-                        BN: {it.batch?.batchNumber || it.batchNumber} (Exp:{' '}
-                        {new Date(it.batch?.expiryDate || it.expiryDate).toLocaleDateString(
-                          'en-GB',
-                        )}
-                        )
-                      </span>
-                      <span>
-                        {it.billedQuantity} x Rs.{Number(it.unitPrice).toFixed(2)}{' '}
-                        {it.bonusQuantity > 0 ? `(+${it.bonusQuantity} free)` : ''}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Financial Summary */}
-              <div className="text-[11px] space-y-1 border-b border-dashed border-charcoal-400 pb-2">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span>Rs.{Number(receiptInvoice.subtotal).toFixed(2)}</span>
-                </div>
-                {Number(receiptInvoice.discountAmount) > 0 && (
-                  <div className="flex justify-between text-emerald-700">
-                    <span>Discount:</span>
-                    <span>-Rs.{Number(receiptInvoice.discountAmount).toFixed(2)}</span>
-                  </div>
-                )}
-                {Number(receiptInvoice.taxAmount) > 0 && (
-                  <div className="flex justify-between">
-                    <span>GST Tax:</span>
-                    <span>Rs.{Number(receiptInvoice.taxAmount).toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-extrabold text-sm pt-1">
-                  <span>NET TOTAL:</span>
-                  <span>Rs.{Number(receiptInvoice.netTotal).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-charcoal-600">
-                  <span>Paid:</span>
-                  <span>Rs.{Number(receiptInvoice.paidAmount).toFixed(2)}</span>
-                </div>
-                {Number(receiptInvoice.balanceAmount) > 0 && (
-                  <div className="flex justify-between font-bold text-rose-700">
-                    <span>Balance Due:</span>
-                    <span>Rs.{Number(receiptInvoice.balanceAmount).toFixed(2)}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="text-center text-[10px] text-charcoal-500 pt-2 space-y-0.5">
-                <p>Goods once sold will not be returned without cash receipt.</p>
-                <p>Warranty under Section 23 of Drug Act 1976.</p>
-                <p className="font-bold">THANK YOU FOR YOUR BUSINESS!</p>
-              </div>
-            </div>
-
-            <div className="p-4 bg-surface-muted/30 border-t border-surface-border flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setReceiptInvoice(null)}
-              >
-                Close
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => window.print()}
-                className="flex items-center gap-1"
-              >
-                <Printer className="h-3.5 w-3.5" />
-                <span>Print Document</span>
-              </Button>
-            </div>
-          </div>
-        </div>
+            return (
+              <SalesInvoicePrintTemplate
+                invoice={printableData}
+                company={company}
+                layout={layout}
+              />
+            );
+          }}
+        </DocumentPrintModal>
       )}
 
       {/* Cancel Invoice Confirmation Modal */}

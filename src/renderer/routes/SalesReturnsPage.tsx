@@ -29,8 +29,16 @@ import {
   getInvoices,
   SalesInvoice,
   warehousesApi,
+  organizationApi,
+  settingsApi,
   Warehouse,
 } from '../api';
+import {
+  DocumentPrintModal,
+  SalesReturnPrintTemplate,
+  PrintableCompanyInfo,
+  PrintableSalesReturn,
+} from '../components/printing';
 
 export const SalesReturnsPage: React.FC = () => {
   const [returns, setReturns] = useState<SalesReturn[]>([]);
@@ -97,7 +105,11 @@ export const SalesReturnsPage: React.FC = () => {
 
   // View / Print Voucher Modal State
   const [viewingReturn, setViewingReturn] = useState<SalesReturn | null>(null);
-  const [printLayout, setPrintLayout] = useState<'A4' | 'THERMAL'>('A4');
+  const [company, setCompany] = useState<PrintableCompanyInfo>({
+    name: 'MEDIX Pharmacy',
+    legalName: 'MEDIX Pharma Distribution',
+  });
+  const [settingsMap, setSettingsMap] = useState<Record<string, string>>({});
 
   // Cancel Modal State
   const [cancellingReturn, setCancellingReturn] = useState<SalesReturn | null>(null);
@@ -135,18 +147,38 @@ export const SalesReturnsPage: React.FC = () => {
     }
   }, [search, reasonFilter, refundModeFilter, statusFilter, startDate, endDate, currentPage]);
 
-  // Load Invoices and Warehouses
+  // Load Invoices, Warehouses, Organization & Settings
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [invRes, whRes] = await Promise.all([
-          getInvoices({ status: 'POSTED', limit: 100 }),
+        const [invData, whData, orgRes, settingsRes] = await Promise.all([
+          getInvoices({ limit: 100, status: 'POSTED' }),
           warehousesApi.getWarehouses(),
+          organizationApi.getOrganization().catch(() => null),
+          settingsApi.getSettings().catch(() => ({ items: [], map: {} })),
         ]);
-        setInvoices(invRes.items || []);
-        setWarehouses(whRes || []);
+        setInvoices(invData?.items || []);
+        setWarehouses(whData || []);
+
+        if (orgRes) {
+          setCompany({
+            name: orgRes.name,
+            legalName: orgRes.legalName || orgRes.name,
+            address: orgRes.address,
+            city: orgRes.city,
+            phone: orgRes.phone,
+            email: orgRes.email,
+            ntn: orgRes.ntn,
+            strn: orgRes.strn,
+            drugSaleLicenseNo: orgRes.drugSaleLicenseNo,
+          });
+        }
+
+        if (settingsRes?.map) {
+          setSettingsMap(settingsRes.map);
+        }
       } catch (err) {
-        console.error('Failed to load initial data', err);
+        console.error('Failed to load auxiliary data', err);
       }
     };
     fetchData();
@@ -1222,334 +1254,61 @@ export const SalesReturnsPage: React.FC = () => {
       {/* VOUCHER / CREDIT NOTE PRINT PREVIEW MODAL */}
       {/* ========================================================================= */}
       {viewingReturn && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="relative w-full max-w-3xl max-h-[90vh] bg-white rounded-xl shadow-2xl border border-surface-border flex flex-col overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-3.5 border-b border-surface-border bg-surface-muted/40 print:hidden">
-              <div className="flex items-center gap-2">
-                <RotateCcw className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-sm font-bold text-charcoal-900">
-                  Sales Return Credit Note — {viewingReturn.returnNumber}
-                </h3>
-              </div>
+        <DocumentPrintModal
+          isOpen={true}
+          onClose={() => setViewingReturn(null)}
+          title={`Sales Return Credit Note — ${viewingReturn.returnNumber}`}
+          subtitle={`Customer: ${viewingReturn.customer?.name || 'Customer'} • Date: ${new Date(viewingReturn.returnDate).toLocaleDateString('en-GB')}`}
+          defaultLayout="A4"
+          allowThermalToggle={true}
+        >
+          {(layout) => {
+            const printableData: PrintableSalesReturn = {
+              returnNumber: viewingReturn.returnNumber,
+              returnDate: new Date(viewingReturn.returnDate).toLocaleDateString('en-GB'),
+              originalInvoiceNumber: viewingReturn.salesInvoice?.invoiceNumber || null,
+              originalInvoiceDate: viewingReturn.salesInvoice?.invoiceDate
+                ? new Date(viewingReturn.salesInvoice.invoiceDate).toLocaleDateString('en-GB')
+                : null,
+              status: viewingReturn.status,
+              customer: {
+                name: viewingReturn.customer?.name || 'Walk-in Customer',
+                code: viewingReturn.customer?.code || null,
+                address: viewingReturn.customer?.address || null,
+                city: viewingReturn.customer?.city || null,
+                phone: viewingReturn.customer?.phone || null,
+              },
+              lines: (viewingReturn.items || []).map((it, idx) => ({
+                itemNumber: idx + 1,
+                sku: it.product?.sku || '',
+                productName: it.product?.name || 'Unknown Product',
+                batchNumber: it.batchNumber || '',
+                expiryDate: it.expiryDate
+                  ? new Date(it.expiryDate).toLocaleDateString('en-GB')
+                  : '',
+                quantity: Number(it.returnedQuantity || 0),
+                bonusQuantity: Number(it.bonusReturnedQuantity || 0),
+                unitPrice: Number(it.unitPrice || 0),
+                reason: viewingReturn.reason?.replace('_', ' ') || null,
+                lineTotal: Number(it.lineTotal || 0),
+              })),
+              subtotal: Number(viewingReturn.subtotal || viewingReturn.netTotal || 0),
+              totalTax: Number(viewingReturn.taxAmount || 0),
+              totalCreditAmount: Number(viewingReturn.netTotal || 0),
+              reason: viewingReturn.reason?.replace('_', ' ') || null,
+              approvedBy: viewingReturn.postedByUser?.displayName || null,
+              footerNotes: settingsMap['sales_return_footer_notes'] || null,
+            };
 
-              <div className="flex items-center gap-2">
-                <div className="flex items-center rounded-lg border border-charcoal-200 p-0.5 bg-white text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setPrintLayout('A4')}
-                    className={`px-2.5 py-1 rounded font-medium ${
-                      printLayout === 'A4'
-                        ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                        : 'text-charcoal-600 hover:text-charcoal-900'
-                    }`}
-                  >
-                    A4 Credit Note
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPrintLayout('THERMAL')}
-                    className={`px-2.5 py-1 rounded font-medium ${
-                      printLayout === 'THERMAL'
-                        ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                        : 'text-charcoal-600 hover:text-charcoal-900'
-                    }`}
-                  >
-                    Thermal 80mm
-                  </button>
-                </div>
-
-                <Button
-                  size="sm"
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print</span>
-                </Button>
-
-                <button
-                  type="button"
-                  onClick={() => setViewingReturn(null)}
-                  className="p-1.5 rounded-lg text-charcoal-400 hover:text-charcoal-700 hover:bg-surface-muted"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Printable Body */}
-            <div className="flex-1 overflow-y-auto p-6 bg-charcoal-50/40 print:p-0 print:bg-white">
-              {printLayout === 'A4' ? (
-                /* Standard A4 Credit Note */
-                <div className="max-w-2xl mx-auto bg-white p-8 border border-surface-border shadow-sm rounded-lg print:border-none print:shadow-none print:p-0">
-                  {/* Credit Note Header */}
-                  <div className="border-b-2 border-charcoal-800 pb-4 mb-6 flex justify-between items-start">
-                    <div>
-                      <h2 className="text-xl font-bold tracking-tight text-charcoal-900">
-                        MEDIX PHARMA DISTRIBUTION
-                      </h2>
-                      <p className="text-xs text-charcoal-600">
-                        Main Distribution Hub, Sector 15, Korangi Industrial Area, Karachi
-                      </p>
-                      <p className="text-xs text-charcoal-500 font-mono">
-                        Phone: +92-21-35000000 | NTN: 7100234-5 | STRN: 17-00-7100-234-11
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="inline-block px-3 py-1 bg-indigo-900 text-white font-bold text-xs rounded uppercase tracking-wider mb-1">
-                        CREDIT NOTE / SALES RETURN
-                      </div>
-                      <div className="font-mono text-sm font-bold text-charcoal-900">
-                        {viewingReturn.returnNumber}
-                      </div>
-                      <div className="text-xs text-charcoal-500">
-                        Date:{' '}
-                        {new Date(viewingReturn.returnDate).toLocaleDateString('en-PK', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Customer & Invoice Meta */}
-                  <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-surface-muted/50 border border-surface-border text-xs mb-6">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-charcoal-400 block mb-0.5">
-                        Customer Account
-                      </span>
-                      <div className="font-bold text-charcoal-900 text-sm">
-                        {viewingReturn.customer?.name}
-                      </div>
-                      <div className="text-charcoal-600 font-mono text-[11px]">
-                        Code: {viewingReturn.customer?.code}
-                      </div>
-                      {viewingReturn.customer?.address && (
-                        <div className="text-charcoal-500 text-[11px] mt-0.5">
-                          {viewingReturn.customer?.address}
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-1 text-right">
-                      <div>
-                        <span className="text-charcoal-500">Invoice Ref:</span>{' '}
-                        <span className="font-mono font-bold text-charcoal-900">
-                          {viewingReturn.salesInvoice?.invoiceNumber || '-'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-charcoal-500">Return Reason:</span>{' '}
-                        <span className="font-semibold text-charcoal-900">
-                          {viewingReturn.reason.replace('_', ' ')}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-charcoal-500">Settlement Mode:</span>{' '}
-                        <span className="font-semibold text-charcoal-900">
-                          {viewingReturn.refundMode.replace('_', ' ')}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-charcoal-500">Status:</span>{' '}
-                        <span
-                          className={`font-bold ${
-                            viewingReturn.status === 'POSTED'
-                              ? 'text-emerald-700'
-                              : 'text-rose-700'
-                          }`}
-                        >
-                          {viewingReturn.status}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Line Items Table */}
-                  <div className="mb-6">
-                    <table className="w-full text-left text-xs border border-charcoal-200">
-                      <thead className="bg-surface-muted text-charcoal-700 font-semibold border-b border-charcoal-200">
-                        <tr>
-                          <th className="py-2 px-3">Product Description</th>
-                          <th className="py-2 px-3">Batch & Expiry</th>
-                          <th className="py-2 px-3 text-center">Qty (Ret / Bonus)</th>
-                          <th className="py-2 px-3">Condition / Warehouse</th>
-                          <th className="py-2 px-3 text-right">Net Value</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-charcoal-200">
-                        {viewingReturn.items?.map((item) => (
-                          <tr key={item.id}>
-                            <td className="py-2 px-3">
-                              <div className="font-bold text-charcoal-900">
-                                {item.product?.name}
-                              </div>
-                              <div className="text-[10px] text-charcoal-400 font-mono">
-                                {item.product?.sku}
-                              </div>
-                            </td>
-                            <td className="py-2 px-3 font-mono text-[11px]">
-                              {item.batchNumber} (
-                              {new Date(item.expiryDate).toLocaleDateString()})
-                            </td>
-                            <td className="py-2 px-3 text-center font-mono">
-                              {item.returnedQuantity} {item.bonusReturnedQuantity > 0 ? `(+${item.bonusReturnedQuantity})` : ''}
-                            </td>
-                            <td className="py-2 px-3 text-[11px]">
-                              <span
-                                className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                  item.stockCondition === 'SALEABLE'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-amber-100 text-amber-800'
-                                }`}
-                              >
-                                {item.stockCondition}
-                              </span>
-                              <span className="text-charcoal-500 block text-[10px]">
-                                {item.destinationWarehouse?.name}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-right font-bold text-charcoal-900">
-                              Rs.{' '}
-                              {Number(item.lineTotal).toLocaleString('en-PK', {
-                                minimumFractionDigits: 2,
-                              })}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Commercial Total Block */}
-                  <div className="border-t-2 border-charcoal-800 pt-4 mb-8 flex justify-end">
-                    <div className="w-64 space-y-1.5 text-xs">
-                      <div className="flex justify-between text-charcoal-600">
-                        <span>Subtotal Value:</span>
-                        <span>
-                          Rs.{' '}
-                          {Number(viewingReturn.subtotal).toLocaleString('en-PK', {
-                            minimumFractionDigits: 2,
-                          })}
-                        </span>
-                      </div>
-                      {Number(viewingReturn.discountAmount) > 0 && (
-                        <div className="flex justify-between text-charcoal-600">
-                          <span>Discount Deducted:</span>
-                          <span>
-                            -Rs.{' '}
-                            {Number(viewingReturn.discountAmount).toLocaleString('en-PK', {
-                              minimumFractionDigits: 2,
-                            })}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex justify-between font-bold text-sm text-charcoal-900 pt-1.5 border-t border-charcoal-300">
-                        <span>Total Credit Note:</span>
-                        <span>
-                          Rs.{' '}
-                          {Number(viewingReturn.netTotal).toLocaleString('en-PK', {
-                            minimumFractionDigits: 2,
-                          })}
-                        </span>
-                      </div>
-                      {Number(viewingReturn.refundAmount) > 0 && (
-                        <div className="flex justify-between font-bold text-xs text-rose-700 pt-1">
-                          <span>Cash/Bank Refund Disbursed:</span>
-                          <span>
-                            Rs.{' '}
-                            {Number(viewingReturn.refundAmount).toLocaleString('en-PK', {
-                              minimumFractionDigits: 2,
-                            })}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Signatures */}
-                  <div className="grid grid-cols-2 gap-12 pt-8 border-t border-charcoal-200 text-xs text-center text-charcoal-500">
-                    <div>
-                      <div className="border-b border-charcoal-400 h-8 mb-1.5" />
-                      <span>Quality & Receiving Inspector</span>
-                    </div>
-                    <div>
-                      <div className="border-b border-charcoal-400 h-8 mb-1.5" />
-                      <span>Authorized Signatory / Accounts</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* Thermal 80mm Slip */
-                <div className="max-w-[320px] mx-auto bg-white p-4 border border-charcoal-300 rounded shadow-xs font-mono text-xs print:border-none print:p-0">
-                  <div className="text-center pb-2 border-b border-dashed border-charcoal-400">
-                    <h3 className="font-bold text-sm text-charcoal-900">MEDIX PHARMA</h3>
-                    <p className="text-[10px] text-charcoal-600">Distribution Hub, Karachi</p>
-                    <div className="font-bold text-xs uppercase mt-1">CREDIT NOTE / RETURN</div>
-                  </div>
-
-                  <div className="py-2 space-y-0.5 text-[11px] border-b border-dashed border-charcoal-400">
-                    <div className="flex justify-between">
-                      <span>Return #:</span>
-                      <span className="font-bold">{viewingReturn.returnNumber}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Date:</span>
-                      <span>{new Date(viewingReturn.returnDate).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Customer:</span>
-                      <span className="font-bold truncate max-w-[150px]">
-                        {viewingReturn.customer?.name}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Inv Ref:</span>
-                      <span>{viewingReturn.salesInvoice?.invoiceNumber || '-'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Reason:</span>
-                      <span>{viewingReturn.reason}</span>
-                    </div>
-                  </div>
-
-                  <div className="py-2 border-b border-dashed border-charcoal-400 text-[10px]">
-                    <div className="font-bold mb-1">RETURNED ITEMS:</div>
-                    {viewingReturn.items?.map((it) => (
-                      <div key={it.id} className="mb-1">
-                        <div className="font-semibold">{it.product?.name}</div>
-                        <div className="flex justify-between text-charcoal-500">
-                          <span>
-                            {it.returnedQuantity}x @ Rs.{Number(it.unitPrice).toFixed(2)} ({it.stockCondition})
-                          </span>
-                          <span>Rs. {Number(it.lineTotal).toFixed(2)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="py-2 space-y-1 text-xs border-b border-dashed border-charcoal-400">
-                    <div className="flex justify-between font-bold text-sm">
-                      <span>CREDIT VALUE:</span>
-                      <span>Rs. {Number(viewingReturn.netTotal).toFixed(2)}</span>
-                    </div>
-                    {Number(viewingReturn.refundAmount) > 0 && (
-                      <div className="flex justify-between text-rose-700 font-bold">
-                        <span>REFUND PAID:</span>
-                        <span>Rs. {Number(viewingReturn.refundAmount).toFixed(2)}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="text-center pt-3 text-[10px] text-charcoal-500">
-                    <p>Generated by Medix by FARMAX</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+            return (
+              <SalesReturnPrintTemplate
+                salesReturn={printableData}
+                company={company}
+                layout={layout}
+              />
+            );
+          }}
+        </DocumentPrintModal>
       )}
 
       {/* ========================================================================= */}

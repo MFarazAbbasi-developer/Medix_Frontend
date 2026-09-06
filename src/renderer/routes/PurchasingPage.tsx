@@ -31,6 +31,8 @@ import {
   getSuppliers,
   warehousesApi,
   productsApi,
+  organizationApi,
+  settingsApi,
   Supplier,
   Warehouse,
   Product,
@@ -39,6 +41,12 @@ import {
   CreatePoPayload,
   CreateGrnPayload,
 } from '../api';
+import {
+  DocumentPrintModal,
+  GrnPrintTemplate,
+  PrintableCompanyInfo,
+  PrintableGrn,
+} from '../components/printing';
 
 export const PurchasingPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'grn' | 'orders'>('grn');
@@ -47,6 +55,11 @@ export const PurchasingPage: React.FC = () => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [company, setCompany] = useState<PrintableCompanyInfo>({
+    name: 'MEDIX Pharmacy',
+    legalName: 'MEDIX Pharma Distribution',
+  });
+  const [settingsMap, setSettingsMap] = useState<Record<string, string>>({});
 
   // Tab 1: GRN State
   const [grnList, setGrnList] = useState<GoodsReceiveNote[]>([]);
@@ -81,14 +94,34 @@ export const PurchasingPage: React.FC = () => {
   // Load master dropdown data
   const loadMasterData = useCallback(async () => {
     try {
-      const [supRes, whData, prodRes] = await Promise.all([
+      const [supRes, whData, prodRes, orgRes, settingsRes] = await Promise.all([
         getSuppliers({ isActive: true, limit: 200 }),
         warehousesApi.getWarehouses(),
         productsApi.getProducts({ limit: 500, isActive: 'true' }),
+        organizationApi.getOrganization().catch(() => null),
+        settingsApi.getSettings().catch(() => ({ items: [], map: {} })),
       ]);
       setSuppliers(supRes?.items || []);
       setWarehouses(whData || []);
       setProducts(prodRes.items || []);
+
+      if (orgRes) {
+        setCompany({
+          name: orgRes.name,
+          legalName: orgRes.legalName || orgRes.name,
+          address: orgRes.address,
+          city: orgRes.city,
+          phone: orgRes.phone,
+          email: orgRes.email,
+          ntn: orgRes.ntn,
+          strn: orgRes.strn,
+          drugSaleLicenseNo: orgRes.drugSaleLicenseNo,
+        });
+      }
+
+      if (settingsRes?.map) {
+        setSettingsMap(settingsRes.map);
+      }
     } catch {
       // ignore
     }
@@ -1569,110 +1602,69 @@ export const PurchasingPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: VIEW GRN DOCUMENT */}
+      {/* MODAL: VIEW & PRINT GRN DOCUMENT */}
       {/* ========================================================================= */}
       {viewingGrn && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <Card className="w-full max-w-3xl bg-white border border-surface-border shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-5 py-3.5 border-b border-surface-border flex items-center justify-between bg-surface-muted/30">
-              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-brand-600" />
-                <h2 className="text-sm font-bold text-charcoal-900">
-                  Goods Receive Note #{viewingGrn.grnNumber}
-                </h2>
-              </div>
-              <button
-                onClick={() => setViewingGrn(null)}
-                className="text-charcoal-400 hover:text-charcoal-700 p-1"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+        <DocumentPrintModal
+          isOpen={true}
+          onClose={() => setViewingGrn(null)}
+          title={`Goods Receive Note — ${viewingGrn.grnNumber}`}
+          subtitle={`Vendor: ${viewingGrn.supplier?.name || 'Supplier'} • Received: ${new Date(viewingGrn.receivedDate).toLocaleDateString('en-GB')}`}
+          defaultLayout="A4"
+          allowThermalToggle={true}
+        >
+          {(layout) => {
+            const printableData: PrintableGrn = {
+              grnNumber: viewingGrn.grnNumber,
+              grnDate: new Date(viewingGrn.receivedDate).toLocaleDateString('en-GB'),
+              poNumber: (viewingGrn as any).purchaseOrder?.poNumber || (viewingGrn as any).poNumber || null,
+              supplierInvoiceNumber: viewingGrn.supplierInvoiceNumber || null,
+              supplierInvoiceDate: viewingGrn.supplierInvoiceDate
+                ? new Date(viewingGrn.supplierInvoiceDate).toLocaleDateString('en-GB')
+                : null,
+              status: viewingGrn.status,
+              warehouseName: viewingGrn.warehouse?.name || null,
+              supplier: {
+                name: viewingGrn.supplier?.name || 'Unknown Supplier',
+                address: viewingGrn.supplier?.address || null,
+                city: viewingGrn.supplier?.city || null,
+                phone: viewingGrn.supplier?.phone || null,
+                ntn: viewingGrn.supplier?.ntn || null,
+              },
+              lines: (viewingGrn.items || []).map((it, idx) => ({
+                itemNumber: idx + 1,
+                sku: it.product?.sku || '',
+                productName: it.product?.name || 'Unknown Product',
+                batchNumber: it.batchNumber || '',
+                expiryDate: it.expiryDate
+                  ? new Date(it.expiryDate).toLocaleDateString('en-GB')
+                  : '',
+                receivedQuantity: Number(it.receivedQuantity || 0),
+                bonusQuantity: Number(it.bonusQuantity || 0),
+                unitCost: Number(it.unitCost || 0),
+                tradePrice: Number(it.tradePrice || 0),
+                mrp: Number(it.retailPrice || 0),
+                discountPercent: Number(it.discountPercentage || 0),
+                taxPercent: Number(it.taxPercentage || 0),
+                lineTotal: Number(it.lineTotal || 0),
+              })),
+              grossTotal: Number(viewingGrn.subtotal || viewingGrn.netTotal || 0),
+              totalDiscount: Number(viewingGrn.discountAmount || 0),
+              totalTax: Number(viewingGrn.taxAmount || 0),
+              netTotal: Number(viewingGrn.netTotal || 0),
+              notes: viewingGrn.notes || null,
+              footerNotes: settingsMap['grn_footer_notes'] || null,
+            };
 
-            <div className="p-5 overflow-y-auto space-y-4 text-xs">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-surface-muted/40 p-3 rounded border border-surface-border">
-                <div>
-                  <span className="text-charcoal-400 block">Status:</span>
-                  <StatusBadge
-                    variant={
-                      viewingGrn.status === 'POSTED'
-                        ? 'success'
-                        : viewingGrn.status === 'DRAFT'
-                        ? 'warning'
-                        : 'neutral'
-                    }
-                  >
-                    {viewingGrn.status}
-                  </StatusBadge>
-                </div>
-                <div>
-                  <span className="text-charcoal-400 block">Supplier:</span>
-                  <span className="font-semibold text-charcoal-900">{viewingGrn.supplier?.name}</span>
-                </div>
-                <div>
-                  <span className="text-charcoal-400 block">Warehouse:</span>
-                  <span className="font-semibold text-charcoal-900">{viewingGrn.warehouse?.name}</span>
-                </div>
-                <div>
-                  <span className="text-charcoal-400 block">Received Date:</span>
-                  <span className="font-semibold text-charcoal-900">
-                    {new Date(viewingGrn.receivedDate).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-
-              <table className="w-full text-left text-xs border border-surface-border rounded">
-                <thead>
-                  <tr className="bg-surface-muted/60 text-charcoal-700 border-b border-surface-border font-semibold">
-                    <th className="py-2 px-2.5">Product</th>
-                    <th className="py-2 px-2">Batch</th>
-                    <th className="py-2 px-2">Expiry</th>
-                    <th className="py-2 px-2 text-right">Received</th>
-                    <th className="py-2 px-2 text-right">Bonus</th>
-                    <th className="py-2 px-2 text-right">Cost</th>
-                    <th className="py-2 px-2 text-right">TP</th>
-                    <th className="py-2 px-2 text-right">MRP</th>
-                    <th className="py-2 px-2.5 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-border">
-                  {viewingGrn.items?.map((item) => (
-                    <tr key={item.id}>
-                      <td className="py-2 px-2.5 font-medium text-charcoal-900">{item.product?.name}</td>
-                      <td className="py-2 px-2 font-mono">{item.batchNumber}</td>
-                      <td className="py-2 px-2">{new Date(item.expiryDate).toLocaleDateString()}</td>
-                      <td className="py-2 px-2 text-right font-semibold">{item.receivedQuantity}</td>
-                      <td className="py-2 px-2 text-right text-emerald-600">{item.bonusQuantity}</td>
-                      <td className="py-2 px-2 text-right">PKR {Number(item.unitCost).toFixed(2)}</td>
-                      <td className="py-2 px-2 text-right text-charcoal-500">PKR {Number(item.tradePrice).toFixed(2)}</td>
-                      <td className="py-2 px-2 text-right text-charcoal-500">PKR {Number(item.retailPrice).toFixed(2)}</td>
-                      <td className="py-2 px-2.5 text-right font-bold">
-                        PKR {Number(item.lineTotal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <div className="flex justify-end pt-2">
-                <div className="bg-brand-50 p-3 rounded border border-brand-200 text-right space-y-1">
-                  <div className="text-xs text-charcoal-600">
-                    Net Billed Payable:{' '}
-                    <span className="font-bold text-base text-brand-800">
-                      PKR {Number(viewingGrn.netTotal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="px-5 py-3 border-t border-surface-border bg-surface-muted/30 flex justify-end">
-              <Button variant="outline" size="sm" onClick={() => setViewingGrn(null)}>
-                Close
-              </Button>
-            </div>
-          </Card>
-        </div>
+            return (
+              <GrnPrintTemplate
+                grn={printableData}
+                company={company}
+                layout={layout}
+              />
+            );
+          }}
+        </DocumentPrintModal>
       )}
 
       {/* ========================================================================= */}

@@ -6,7 +6,6 @@ import {
   Plus,
   Receipt,
   FileText,
-  Printer,
   Ban,
   X,
   CheckCircle2,
@@ -27,8 +26,16 @@ import {
   PaymentMethod,
   SupplierPaymentStatus,
   suppliersApi,
+  organizationApi,
+  settingsApi,
   Supplier,
 } from '../api';
+import {
+  DocumentPrintModal,
+  SupplierPaymentVoucherTemplate,
+  PrintableCompanyInfo,
+  PrintableSupplierPayment,
+} from '../components/printing';
 
 export const SupplierPaymentsPage: React.FC = () => {
   const [payments, setPayments] = useState<SupplierPayment[]>([]);
@@ -85,7 +92,11 @@ export const SupplierPaymentsPage: React.FC = () => {
 
   // Details / Print Modal State
   const [viewingPayment, setViewingPayment] = useState<SupplierPayment | null>(null);
-  const [printLayout, setPrintLayout] = useState<'A4' | 'THERMAL'>('A4');
+  const [company, setCompany] = useState<PrintableCompanyInfo>({
+    name: 'MEDIX Pharmacy',
+    legalName: 'MEDIX Pharma Distribution',
+  });
+  const [settingsMap, setSettingsMap] = useState<Record<string, string>>({});
 
   // Cancel Modal State
   const [cancellingPayment, setCancellingPayment] = useState<SupplierPayment | null>(null);
@@ -121,17 +132,39 @@ export const SupplierPaymentsPage: React.FC = () => {
     }
   }, [search, methodFilter, statusFilter, startDate, endDate, currentPage]);
 
-  // Load Suppliers list
+  // Load Suppliers, Organization & Settings
   useEffect(() => {
-    const fetchSuppliers = async () => {
+    const fetchAuxData = async () => {
       try {
-        const data = await suppliersApi.getSuppliers();
+        const [data, orgRes, settingsRes] = await Promise.all([
+          suppliersApi.getSuppliers(),
+          organizationApi.getOrganization().catch(() => null),
+          settingsApi.getSettings().catch(() => ({ items: [], map: {} })),
+        ]);
         setSuppliers(data?.items || (Array.isArray(data) ? data : []));
+
+        if (orgRes) {
+          setCompany({
+            name: orgRes.name,
+            legalName: orgRes.legalName || orgRes.name,
+            address: orgRes.address,
+            city: orgRes.city,
+            phone: orgRes.phone,
+            email: orgRes.email,
+            ntn: orgRes.ntn,
+            strn: orgRes.strn,
+            drugSaleLicenseNo: orgRes.drugSaleLicenseNo,
+          });
+        }
+
+        if (settingsRes?.map) {
+          setSettingsMap(settingsRes.map);
+        }
       } catch (err) {
-        console.error('Failed to load suppliers', err);
+        console.error('Failed to load aux data', err);
       }
     };
-    fetchSuppliers();
+    fetchAuxData();
   }, []);
 
   useEffect(() => {
@@ -1023,226 +1056,53 @@ export const SupplierPaymentsPage: React.FC = () => {
       {/* MODAL: VIEW & PRINT PAYMENT VOUCHER                       */}
       {/* ========================================================= */}
       {viewingPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-xl shadow-2xl border border-charcoal-200 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border bg-surface-muted/50">
-              <div className="flex items-center gap-2.5">
-                <Receipt className="w-5 h-5 text-teal-600" />
-                <div>
-                  <h2 className="text-base font-bold text-charcoal-900">
-                    Payment Voucher: {viewingPayment.paymentNumber}
-                  </h2>
-                  <p className="text-xs text-charcoal-500">
-                    Supplier disbursement receipt & settlement audit
-                  </p>
-                </div>
-              </div>
+        <DocumentPrintModal
+          isOpen={true}
+          onClose={() => setViewingPayment(null)}
+          title={`Payment Disbursement Voucher — ${viewingPayment.paymentNumber}`}
+          subtitle={`Paid To: ${viewingPayment.supplier?.name || 'Supplier'} • Date: ${new Date(viewingPayment.paymentDate).toLocaleDateString('en-GB')}`}
+          defaultLayout="A4"
+          allowThermalToggle={true}
+        >
+          {(layout) => {
+            const printableData: PrintableSupplierPayment = {
+              voucherNumber: viewingPayment.paymentNumber,
+              paymentDate: new Date(viewingPayment.paymentDate).toLocaleDateString('en-GB'),
+              paymentMethod: viewingPayment.paymentMethod.replace('_', ' '),
+              referenceNumber: viewingPayment.referenceNumber || null,
+              bankName: viewingPayment.bankName || null,
+              supplier: {
+                name: viewingPayment.supplier?.name || 'Unknown Supplier',
+                code: viewingPayment.supplier?.code || null,
+                address: viewingPayment.supplier?.address || null,
+                city: viewingPayment.supplier?.city || null,
+                phone: viewingPayment.supplier?.phone || null,
+                ntn: viewingPayment.supplier?.ntn || null,
+              },
+              amount: Number(viewingPayment.amount || 0),
+              allocations: (viewingPayment.allocations || []).map((a) => ({
+                documentNumber: a.grn?.grnNumber || a.grnId,
+                documentDate: a.grn?.receivedDate
+                  ? new Date(a.grn.receivedDate).toLocaleDateString('en-GB')
+                  : '',
+                totalDocumentAmount: Number(a.grn?.netTotal || 0),
+                previousBalance: Number(a.grn?.balanceAmount || 0) + Number(a.amountAllocated || 0),
+                allocatedAmount: Number(a.amountAllocated || 0),
+                remainingBalance: Number(a.grn?.balanceAmount || 0),
+              })),
+              notes: viewingPayment.notes || null,
+              footerNotes: settingsMap['supplier_payment_footer_notes'] || null,
+            };
 
-              <div className="flex items-center gap-2">
-                <div className="flex rounded-md border border-charcoal-200 p-0.5 bg-charcoal-50 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => setPrintLayout('A4')}
-                    className={`px-2 py-0.5 rounded font-medium ${
-                      printLayout === 'A4'
-                        ? 'bg-white shadow-xs text-charcoal-900'
-                        : 'text-charcoal-500'
-                    }`}
-                  >
-                    A4 Voucher
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPrintLayout('THERMAL')}
-                    className={`px-2 py-0.5 rounded font-medium ${
-                      printLayout === 'THERMAL'
-                        ? 'bg-white shadow-xs text-charcoal-900'
-                        : 'text-charcoal-500'
-                    }`}
-                  >
-                    Thermal 80mm
-                  </button>
-                </div>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 text-xs text-charcoal-700"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print</span>
-                </Button>
-
-                <button
-                  type="button"
-                  onClick={() => setViewingPayment(null)}
-                  className="p-1 rounded-lg text-charcoal-400 hover:text-charcoal-700 hover:bg-charcoal-100 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Printable Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* Document Header Card */}
-              <div className="p-4 rounded-lg bg-surface-muted/50 border border-surface-border grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-                <div>
-                  <div className="text-charcoal-400 text-[10px] uppercase font-semibold">
-                    Voucher Number
-                  </div>
-                  <div className="font-bold text-charcoal-900 font-mono text-sm mt-0.5">
-                    {viewingPayment.paymentNumber}
-                  </div>
-                  <span
-                    className={`inline-block mt-1 px-2 py-0.2 rounded-full text-[10px] font-semibold ${
-                      viewingPayment.status === 'POSTED'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-rose-100 text-rose-800'
-                    }`}
-                  >
-                    {viewingPayment.status}
-                  </span>
-                </div>
-
-                <div>
-                  <div className="text-charcoal-400 text-[10px] uppercase font-semibold">
-                    Payment Date
-                  </div>
-                  <div className="font-medium text-charcoal-900 mt-0.5">
-                    {new Date(viewingPayment.paymentDate).toLocaleDateString('en-PK', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-charcoal-400 text-[10px] uppercase font-semibold">
-                    Supplier / Vendor
-                  </div>
-                  <div className="font-bold text-charcoal-900 mt-0.5">
-                    {viewingPayment.supplier?.name}
-                  </div>
-                  <div className="text-[10px] text-charcoal-500 font-mono">
-                    {viewingPayment.supplier?.code}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-charcoal-400 text-[10px] uppercase font-semibold">
-                    Method & Reference
-                  </div>
-                  <div className="font-medium text-charcoal-900 mt-0.5">
-                    {viewingPayment.paymentMethod.replace('_', ' ')}
-                  </div>
-                  {viewingPayment.referenceNumber && (
-                    <div className="text-[10px] text-charcoal-500 font-mono">
-                      Ref: {viewingPayment.referenceNumber}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Financial Totals */}
-              <div className="grid grid-cols-3 gap-4">
-                <Card className="p-3 bg-teal-50/50 border-teal-100 text-center">
-                  <div className="text-[10px] text-teal-700 uppercase font-semibold">
-                    Total Amount Disbursed
-                  </div>
-                  <div className="text-base font-bold text-teal-950 mt-1">
-                    Rs. {Number(viewingPayment.amount).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
-                  </div>
-                </Card>
-
-                <Card className="p-3 bg-emerald-50/50 border-emerald-100 text-center">
-                  <div className="text-[10px] text-emerald-700 uppercase font-semibold">
-                    Allocated to GRNs
-                  </div>
-                  <div className="text-base font-bold text-emerald-950 mt-1">
-                    Rs. {Number(viewingPayment.allocatedAmount).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
-                  </div>
-                </Card>
-
-                <Card className="p-3 bg-amber-50/50 border-amber-100 text-center">
-                  <div className="text-[10px] text-amber-700 uppercase font-semibold">
-                    Supplier Advance Credit
-                  </div>
-                  <div className="text-base font-bold text-amber-950 mt-1">
-                    Rs. {Number(viewingPayment.unallocatedAmount).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
-                  </div>
-                </Card>
-              </div>
-
-              {/* Allocated GRNs Breakdown */}
-              <div>
-                <h3 className="text-xs font-bold text-charcoal-800 uppercase tracking-wider mb-2">
-                  Itemized GRN Settlement Allocations
-                </h3>
-                {viewingPayment.allocations && viewingPayment.allocations.length > 0 ? (
-                  <div className="overflow-hidden border border-surface-border rounded-lg">
-                    <table className="w-full text-left text-xs text-charcoal-700">
-                      <thead className="bg-surface-muted text-charcoal-600 font-semibold uppercase tracking-wider text-[10px] border-b border-surface-border">
-                        <tr>
-                          <th className="py-2 px-3">GRN #</th>
-                          <th className="py-2 px-3">Vendor Bill #</th>
-                          <th className="py-2 px-3 text-right">GRN Net Total</th>
-                          <th className="py-2 px-3 text-right">Remaining Balance</th>
-                          <th className="py-2 px-3 text-right">Amount Settled</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-surface-border">
-                        {viewingPayment.allocations.map((a) => (
-                          <tr key={a.id}>
-                            <td className="py-2 px-3 font-semibold text-charcoal-900 font-mono">
-                              {a.grn?.grnNumber || 'N/A'}
-                            </td>
-                            <td className="py-2 px-3 text-charcoal-500">
-                              {a.grn?.supplierInvoiceNumber || '-'}
-                            </td>
-                            <td className="py-2 px-3 text-right">
-                              Rs. {Number(a.grn?.netTotal || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-2 px-3 text-right font-medium text-rose-700">
-                              Rs. {Number(a.grn?.balanceAmount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-2 px-3 text-right font-bold text-emerald-700">
-                              Rs. {Number(a.amountAllocated).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="text-xs text-charcoal-400 italic">
-                    No individual GRN allocations (entire amount recorded as unallocated vendor credit).
-                  </p>
-                )}
-              </div>
-
-              {/* Audit Trail */}
-              <div className="p-3 bg-surface-muted/30 border border-surface-border rounded-lg text-[11px] text-charcoal-500 space-y-1">
-                <div>
-                  <span className="font-semibold text-charcoal-700">Posted At:</span>{' '}
-                  {new Date(viewingPayment.postedAt).toLocaleString('en-PK')} by{' '}
-                  {viewingPayment.postedByUser?.displayName || 'System'}
-                </div>
-                {viewingPayment.status === 'CANCELLED' && (
-                  <div className="text-rose-700">
-                    <span className="font-semibold">Cancelled At:</span>{' '}
-                    {new Date(viewingPayment.cancelledAt!).toLocaleString('en-PK')} by{' '}
-                    {viewingPayment.cancelledByUser?.displayName || 'System'} — Reason:{' '}
-                    {viewingPayment.cancellationReason}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+            return (
+              <SupplierPaymentVoucherTemplate
+                payment={printableData}
+                company={company}
+                layout={layout}
+              />
+            );
+          }}
+        </DocumentPrintModal>
       )}
 
       {/* ========================================================= */}
