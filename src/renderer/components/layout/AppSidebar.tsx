@@ -22,11 +22,11 @@ export const AppSidebar: React.FC = () => {
   const coreNavItems = [
     { to: '/', label: 'Overview', icon: LayoutDashboard },
     { to: '/products', label: 'Products & Batches', icon: Package },
+    { to: '/inventory', label: 'Inventory & Stock', icon: Layers },
     { to: '/settings', label: 'System Settings', icon: Settings },
   ];
 
   const plannedModules = [
-    { label: 'Inventory Management', icon: Layers },
     { label: 'Purchasing & Receiving', icon: ShoppingCart },
     { label: 'Sales & Invoicing', icon: Receipt },
     { label: 'Customers & Parties', icon: Users },

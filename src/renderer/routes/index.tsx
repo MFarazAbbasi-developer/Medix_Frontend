@@ -6,6 +6,7 @@ import { LoginPage } from './LoginPage';
 import { DashboardPage } from './DashboardPage';
 import { SettingsPage } from './SettingsPage';
 import { ProductsPage } from './ProductsPage';
+import { InventoryPage } from './InventoryPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -18,6 +19,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="/" element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="products" element={<ProductsPage />} />
+          <Route path="inventory" element={<InventoryPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

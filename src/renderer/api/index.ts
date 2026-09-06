@@ -9,3 +9,5 @@ export * from './audit.api';
 export * from './master-data.api';
 export * from './products.api';
 export * from './batches.api';
+export * from './warehouses.api';
+export * from './inventory.api';
