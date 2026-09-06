@@ -6,6 +6,7 @@ export interface Warehouse {
   branchId: string;
   name: string;
   code: string;
+  warehouseType?: 'STANDARD' | 'QUARANTINE';
   address?: string | null;
   isDefault: boolean;
   isActive: boolean;

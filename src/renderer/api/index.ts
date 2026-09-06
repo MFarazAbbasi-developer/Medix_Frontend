@@ -16,4 +16,5 @@ export * from './purchasing.api';
 export * from './customers.api';
 export * from './sales.api';
 export * from './customer-payments.api';
+export * from './sales-returns.api';
 

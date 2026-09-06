@@ -12,6 +12,7 @@ import { SuppliersPage } from './SuppliersPage';
 import { SalesPage } from './SalesPage';
 import { CustomersPage } from './CustomersPage';
 import { CustomerPaymentsPage } from './CustomerPaymentsPage';
+import { SalesReturnsPage } from './SalesReturnsPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -26,6 +27,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="products" element={<ProductsPage />} />
           <Route path="inventory" element={<InventoryPage />} />
           <Route path="sales" element={<SalesPage />} />
+          <Route path="sales-returns" element={<SalesReturnsPage />} />
           <Route path="payments" element={<CustomerPaymentsPage />} />
           <Route path="customers" element={<CustomersPage />} />
           <Route path="purchasing" element={<PurchasingPage />} />
