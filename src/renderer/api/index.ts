@@ -6,3 +6,6 @@ export * from './organization.api';
 export * from './numbering.api';
 export * from './settings.api';
 export * from './audit.api';
+export * from './master-data.api';
+export * from './products.api';
+export * from './batches.api';
