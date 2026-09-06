@@ -1,0 +1,28 @@
+{
+  "appId": "com.farmax.medix",
+  "productName": "Medix by FARMAX",
+  "copyright": "Copyright © 2026 Farmax Software Solutions",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "package.json"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Medix by FARMAX"
+  }
+}

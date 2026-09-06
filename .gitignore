@@ -1,0 +1,42 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Build & Dist
+dist
+dist-ssr
+release
+*.local
+
+# Dependencies
+node_modules
+
+# Coverage
+coverage
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE & OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
