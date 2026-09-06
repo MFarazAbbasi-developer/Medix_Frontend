@@ -210,7 +210,7 @@ export const SalesPage: React.FC = () => {
         // Resolve unit price & discounts based on precedence
         const alloc = preview.allocation.allocations[0];
         let basePrice = alloc ? (defaultPricingBase === 'MRP' ? alloc.retailPrice : alloc.tradePrice) : 0;
-        let discPct = preview.customerPricing?.discountPercentage || 0;
+        const discPct = preview.customerPricing?.discountPercentage || 0;
 
         if (preview.customerPricing?.customPrice) {
           basePrice = preview.customerPricing.customPrice;

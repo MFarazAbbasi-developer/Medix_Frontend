@@ -15,3 +15,5 @@ export * from './suppliers.api';
 export * from './purchasing.api';
 export * from './customers.api';
 export * from './sales.api';
+export * from './customer-payments.api';
+
