@@ -32,6 +32,7 @@ export const AppSidebar: React.FC = () => {
   ];
 
   const businessNavItems = [
+    { to: '/reports', label: 'Reports & Analytics', icon: BarChart3 },
     { to: '/sales', label: 'Sales & Invoicing', icon: Receipt },
     { to: '/pricing', label: 'Pricing & Schemes', icon: Tag },
     { to: '/transfers', label: 'Stock Transfers', icon: ArrowLeftRight },
@@ -45,9 +46,7 @@ export const AppSidebar: React.FC = () => {
     { to: '/suppliers', label: 'Suppliers & Vendors', icon: Building2 },
   ];
 
-  const plannedModules = [
-    { label: 'Reports & Auditing', icon: BarChart3 },
-  ];
+  const plannedModules: { label: string; icon: React.ComponentType<{ className?: string }> }[] = [];
 
   return (
     <aside

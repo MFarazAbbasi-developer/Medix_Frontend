@@ -22,3 +22,5 @@ export * from './purchase-returns.api';
 export * from './pricing.api';
 export * from './transfers.api';
 export * from './expiry.api';
+export * from './reports.api';
+
