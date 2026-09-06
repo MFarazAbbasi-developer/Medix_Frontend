@@ -11,3 +11,5 @@ export * from './products.api';
 export * from './batches.api';
 export * from './warehouses.api';
 export * from './inventory.api';
+export * from './suppliers.api';
+export * from './purchasing.api';

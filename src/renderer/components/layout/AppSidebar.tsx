@@ -26,11 +26,14 @@ export const AppSidebar: React.FC = () => {
     { to: '/settings', label: 'System Settings', icon: Settings },
   ];
 
+  const businessNavItems = [
+    { to: '/purchasing', label: 'Purchasing & Receiving', icon: ShoppingCart },
+    { to: '/suppliers', label: 'Suppliers & Vendors', icon: Building2 },
+  ];
+
   const plannedModules = [
-    { label: 'Purchasing & Receiving', icon: ShoppingCart },
     { label: 'Sales & Invoicing', icon: Receipt },
     { label: 'Customers & Parties', icon: Users },
-    { label: 'Suppliers & Vendors', icon: Building2 },
     { label: 'Reports & Auditing', icon: BarChart3 },
   ];
 
@@ -73,15 +76,45 @@ export const AppSidebar: React.FC = () => {
           </nav>
         </div>
 
-        {/* Future Modules Skeleton */}
+        {/* Business Modules */}
         <div className="px-2 py-2 border-t border-surface-border">
           {!isSidebarCollapsed && (
             <div className="px-2 pb-1.5 flex items-center justify-between">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-charcoal-400">
                 Business Modules
               </span>
-              <span className="text-[9px] font-medium text-brand-600 bg-brand-50 px-1.5 py-0.2 rounded border border-brand-200">
-                Upcoming
+            </div>
+          )}
+          <nav className="space-y-0.5">
+            {businessNavItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) =>
+                    clsx(
+                      'flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors',
+                      isActive
+                        ? 'bg-brand-50 text-brand-700 font-semibold border border-brand-200/60'
+                        : 'text-charcoal-700 hover:bg-surface-muted hover:text-charcoal-900 border border-transparent',
+                    )
+                  }
+                >
+                  <Icon className="h-4 w-4 shrink-0 text-charcoal-600" />
+                  {!isSidebarCollapsed && <span>{item.label}</span>}
+                </NavLink>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Upcoming Modules Skeleton */}
+        <div className="px-2 py-2 border-t border-surface-border">
+          {!isSidebarCollapsed && (
+            <div className="px-2 pb-1.5 flex items-center justify-between">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-charcoal-400">
+                Upcoming Modules
               </span>
             </div>
           )}
