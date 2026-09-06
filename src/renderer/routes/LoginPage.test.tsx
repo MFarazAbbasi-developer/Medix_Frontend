@@ -38,7 +38,12 @@ describe('LoginPage Component', () => {
       </MemoryRouter>,
     );
 
+    const usernameInput = screen.getByLabelText(/username/i);
+    const passwordInput = screen.getByLabelText(/password/i);
     const submitBtn = screen.getByRole('button', { name: /sign in to station/i });
+
+    fireEvent.change(usernameInput, { target: { value: '' } });
+    fireEvent.change(passwordInput, { target: { value: '' } });
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
