@@ -27,13 +27,13 @@ export const AppSidebar: React.FC = () => {
   ];
 
   const businessNavItems = [
+    { to: '/sales', label: 'Sales & Invoicing', icon: Receipt },
+    { to: '/customers', label: 'Customers & Parties', icon: Users },
     { to: '/purchasing', label: 'Purchasing & Receiving', icon: ShoppingCart },
     { to: '/suppliers', label: 'Suppliers & Vendors', icon: Building2 },
   ];
 
   const plannedModules = [
-    { label: 'Sales & Invoicing', icon: Receipt },
-    { label: 'Customers & Parties', icon: Users },
     { label: 'Reports & Auditing', icon: BarChart3 },
   ];
 

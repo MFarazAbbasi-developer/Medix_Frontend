@@ -44,3 +44,8 @@ export const settingsApi = {
     return response.data;
   },
 };
+
+export const getSettings = () => settingsApi.getSettings();
+export const updateSettings = (data: UpdateSettingsDto) =>
+  settingsApi.updateSettings(data);
+
