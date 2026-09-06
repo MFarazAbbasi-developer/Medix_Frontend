@@ -34,7 +34,8 @@ import {
   FefoPreviewResponse,
   SalesMetricsResponse,
 } from '../api';
-
+import { useAuthStore } from '../store/authStore';
+import { clsx } from 'clsx';
 
 interface CartItem {
   id: string; // temporary cart row id
@@ -54,11 +55,19 @@ interface CartItem {
   discountPercentage: number;
   taxPercentage: number;
   lineTotal: number;
+  pricingSource?: string;
+  schemeName?: string;
+  reason?: string;
   remarks?: string;
 }
 
 export const SalesPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'POS' | 'INVOICES'>('POS');
+  const user = useAuthStore((s) => s.user);
+  const canOverrideDiscount =
+    user?.roles?.includes('ADMIN') ||
+    user?.permissions?.includes('sales.override_discount') ||
+    false;
 
   // Master dropdown data
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -220,6 +229,10 @@ export const SalesPage: React.FC = () => {
         setLineDiscountPct(discPct);
         setLineTaxPct(preview.product.taxPercentage || 0);
 
+        if (preview.customerPricing?.bonusQuantity !== undefined) {
+          setLineBonusQty(preview.customerPricing.bonusQuantity || 0);
+        }
+
         if (alloc) {
           setLineBatchId(alloc.batchId);
         }
@@ -284,6 +297,9 @@ export const SalesPage: React.FC = () => {
       discountPercentage: lineDiscountPct,
       taxPercentage: lineTaxPct,
       lineTotal,
+      pricingSource: fefoData?.customerPricing?.pricingSource || undefined,
+      schemeName: fefoData?.customerPricing?.schemeName || undefined,
+      reason: fefoData?.customerPricing?.reason || undefined,
     };
 
     setCartItems((prev) => [...prev, newItem]);
@@ -765,6 +781,36 @@ export const SalesPage: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Pricing Scheme / Precedence Resolution Badge */}
+                  {fefoData?.customerPricing && (
+                    <div className="p-2.5 bg-white rounded-md border border-brand-200 text-xs flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-brand-100 text-brand-800 border border-brand-200">
+                          {fefoData.customerPricing.pricingSource?.replace(/_/g, ' ') || 'STANDARD PRICING'}
+                        </span>
+                        {fefoData.customerPricing.schemeName && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                            Scheme: {fefoData.customerPricing.schemeName}
+                          </span>
+                        )}
+                        {(fefoData.customerPricing.bonusQuantity || 0) > 0 && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            +{fefoData.customerPricing.bonusQuantity} Bonus Free
+                          </span>
+                        )}
+                        <span className="text-[11px] text-charcoal-600">
+                          {fefoData.customerPricing.reason}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-semibold text-charcoal-700">
+                        Effective Rate:{' '}
+                        <span className="text-brand-700 font-bold">
+                          PKR {Number(fefoData.customerPricing.effectiveUnitPrice || lineUnitPrice).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Line Entry Inputs */}
                   <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 pt-1">
                     <div>
@@ -812,17 +858,29 @@ export const SalesPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-semibold text-charcoal-600 mb-0.5">
-                        Discount %
-                      </label>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <label className="text-[10px] font-semibold text-charcoal-600">
+                          Discount %
+                        </label>
+                        {!canOverrideDiscount && (
+                          <span className="text-[9px] text-charcoal-400 font-normal">
+                            (Locked)
+                          </span>
+                        )}
+                      </div>
                       <Input
                         type="number"
                         min="0"
                         max="100"
                         step="0.1"
+                        disabled={!canOverrideDiscount}
                         value={lineDiscountPct}
                         onChange={(e) => setLineDiscountPct(Number(e.target.value))}
-                        className="h-8 text-xs text-emerald-700 font-semibold"
+                        className={clsx(
+                          'h-8 text-xs text-emerald-700 font-semibold',
+                          !canOverrideDiscount && 'opacity-70 bg-surface-ground cursor-not-allowed',
+                        )}
+                        title={!canOverrideDiscount ? 'Requires sales.override_discount permission' : undefined}
                       />
                     </div>
 
@@ -908,8 +966,13 @@ export const SalesPage: React.FC = () => {
                             <div className="font-bold text-charcoal-900">
                               {item.productName}
                             </div>
-                            <div className="text-[10px] text-charcoal-500 font-mono">
-                              {item.sku}
+                            <div className="text-[10px] text-charcoal-500 font-mono flex items-center gap-1.5 mt-0.5">
+                              <span>{item.sku}</span>
+                              {item.schemeName && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                                  {item.schemeName}
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="py-2.5 px-3">
@@ -923,8 +986,14 @@ export const SalesPage: React.FC = () => {
                           <td className="py-2.5 px-3 text-center font-bold text-charcoal-900">
                             {item.billedQuantity}
                           </td>
-                          <td className="py-2.5 px-3 text-center font-semibold text-emerald-700">
-                            {item.bonusQuantity > 0 ? `+${item.bonusQuantity}` : '—'}
+                          <td className="py-2.5 px-3 text-center font-semibold text-purple-700">
+                            {item.bonusQuantity > 0 ? (
+                              <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-bold text-[11px] border border-purple-200">
+                                +{item.bonusQuantity} Free
+                              </span>
+                            ) : (
+                              '—'
+                            )}
                           </td>
                           <td className="py-2.5 px-3 text-right font-medium text-charcoal-800">
                             Rs.{item.unitPrice.toFixed(2)}

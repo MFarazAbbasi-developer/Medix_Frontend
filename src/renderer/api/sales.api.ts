@@ -32,6 +32,10 @@ export interface SalesInvoiceItem {
   lineTotal: string | number;
   lineCost: string | number;
   lineProfit: string | number;
+  pricingSource?: string | null;
+  pricingRuleId?: string | null;
+  schemeId?: string | null;
+  schemeName?: string | null;
   product?: {
     id: string;
     sku: string;
@@ -131,6 +135,11 @@ export interface FefoPreviewResponse {
   customerPricing: {
     customPrice: number | null;
     discountPercentage: number;
+    bonusQuantity?: number;
+    pricingSource?: string;
+    schemeName?: string | null;
+    reason?: string;
+    effectiveUnitPrice?: number;
   };
   allocation: {
     productId: string;
