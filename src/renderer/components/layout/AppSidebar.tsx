@@ -16,6 +16,7 @@ import {
   RotateCcw,
   Tag,
   ArrowLeftRight,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { clsx } from 'clsx';
@@ -34,6 +35,7 @@ export const AppSidebar: React.FC = () => {
     { to: '/sales', label: 'Sales & Invoicing', icon: Receipt },
     { to: '/pricing', label: 'Pricing & Schemes', icon: Tag },
     { to: '/transfers', label: 'Stock Transfers', icon: ArrowLeftRight },
+    { to: '/expiry-recalls', label: 'Expiry & Recalls', icon: ShieldAlert },
     { to: '/sales-returns', label: 'Sales Returns', icon: RotateCcw },
     { to: '/payments', label: 'Customer Payments', icon: CreditCard },
     { to: '/customers', label: 'Customers & Parties', icon: Users },
