@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   Shield,
   UploadCloud,
+  Sparkles,
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { clsx } from 'clsx';
@@ -28,6 +29,7 @@ export const AppSidebar: React.FC = () => {
 
   const coreNavItems = [
     { to: '/', label: 'Overview', icon: LayoutDashboard },
+    { to: '/onboarding', label: 'Setup & Onboarding', icon: Sparkles },
     { to: '/products', label: 'Products & Batches', icon: Package },
     { to: '/inventory', label: 'Inventory & Stock', icon: Layers },
     { to: '/imports', label: 'Data Import Center', icon: UploadCloud },
