@@ -17,6 +17,7 @@ import {
   Tag,
   ArrowLeftRight,
   ShieldAlert,
+  Shield,
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { clsx } from 'clsx';
@@ -28,6 +29,7 @@ export const AppSidebar: React.FC = () => {
     { to: '/', label: 'Overview', icon: LayoutDashboard },
     { to: '/products', label: 'Products & Batches', icon: Package },
     { to: '/inventory', label: 'Inventory & Stock', icon: Layers },
+    { to: '/admin', label: 'Administration & System', icon: Shield },
     { to: '/settings', label: 'System Settings', icon: Settings },
   ];
 

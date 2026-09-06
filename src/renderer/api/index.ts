@@ -23,4 +23,5 @@ export * from './pricing.api';
 export * from './transfers.api';
 export * from './expiry.api';
 export * from './reports.api';
+export * from './admin.api';
 

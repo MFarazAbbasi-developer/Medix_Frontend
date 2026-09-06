@@ -22,6 +22,9 @@ export interface QueryAuditLogParams {
   entityId?: string;
   userId?: string;
   action?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
   page?: number;
   limit?: number;
 }
