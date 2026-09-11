@@ -201,3 +201,64 @@ export interface PrintableSupplierPayment {
   notes?: string | null;
   footerNotes?: string | null;
 }
+
+export interface PrintableDeliveryChallanLine {
+  itemNumber?: number;
+  productName: string;
+  productSku: string;
+  genericName?: string | null;
+  packSize?: string | null;
+  unitOfMeasurement?: string | null;
+  batchNumber: string;
+  expiryDate: string;
+  orderedBilledQuantity: number;
+  orderedBonusQuantity: number;
+  deliveredBilledQuantity: number;
+  deliveredBonusQuantity: number;
+  totalDispatchedQuantity: number;
+}
+
+export interface PrintableDeliveryChallan {
+  company: PrintableCompanyInfo;
+  branch?: {
+    name?: string | null;
+    code?: string | null;
+    address?: string | null;
+    city?: string | null;
+    phone?: string | null;
+  } | null;
+  challanNumber: string;
+  fulfillmentDate: string;
+  fulfillmentNumber: number;
+  doNumber: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  status: string;
+  notes?: string | null;
+  customer: {
+    name: string;
+    code?: string | null;
+  };
+  deliveryDestination: {
+    title?: string | null;
+    recipientName?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    city?: string | null;
+    instructions?: string | null;
+  };
+  salesAttribution: {
+    salesmanName?: string | null;
+    salesmanCode?: string | null;
+    routeName?: string | null;
+    routeCode?: string | null;
+  };
+  dispatchedBy: string;
+  lines: PrintableDeliveryChallanLine[];
+  summary: {
+    totalBilledQuantity: number;
+    totalBonusQuantity: number;
+    totalDispatchedQuantity: number;
+    totalLinesCount: number;
+  };
+}

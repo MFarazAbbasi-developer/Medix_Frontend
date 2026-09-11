@@ -14,6 +14,7 @@ import {
   Check,
   PackageCheck,
   Info,
+  Printer,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -30,6 +31,8 @@ import {
   SalesRoute,
   Customer,
 } from '../api';
+import { DocumentPrintModal, DeliveryChallanPrintTemplate, PrintableDeliveryChallan } from '../components/printing';
+import { usePermission } from '../hooks/usePermission';
 
 export const DeliveryOrdersPage: React.FC = () => {
   const [deliveryOrders, setDeliveryOrders] = useState<DeliveryOrder[]>([]);
@@ -87,6 +90,32 @@ export const DeliveryOrdersPage: React.FC = () => {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState<boolean>(false);
   const [cancellationReason, setCancellationReason] = useState<string>('');
   const [isSubmittingCancel, setIsSubmittingCancel] = useState<boolean>(false);
+
+  // Phase 20D — Delivery Challan Printing State
+  const { hasPermission } = usePermission();
+  const canPrint = hasPermission('delivery_orders.print');
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
+  const [printData, setPrintData] = useState<PrintableDeliveryChallan | null>(null);
+  const [loadingPrintId, setLoadingPrintId] = useState<string | null>(null);
+
+  const handlePrintChallan = async (doId: string, fulfillmentId: string) => {
+    if (!canPrint) {
+      showFeedback('error', 'You do not have permission to print delivery challans.');
+      return;
+    }
+    setLoadingPrintId(fulfillmentId);
+    try {
+      const res = await deliveryOrdersApi.getFulfillmentPrintData(doId, fulfillmentId);
+      if (res.data) {
+        setPrintData(res.data);
+        setIsPrintModalOpen(true);
+      }
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.message || 'Failed to load challan print data');
+    } finally {
+      setLoadingPrintId(null);
+    }
+  };
 
   // 1. Fetch Masters for Filter Dropdowns
   useEffect(() => {
@@ -258,6 +287,12 @@ export const DeliveryOrdersPage: React.FC = () => {
         });
         setFulfillmentInputs(resetInputs);
         setFulfillmentNotes('');
+
+        // Phase 20D: Offer/open print modal for the newly generated Delivery Challan
+        const latestFulfillment = res.data.fulfillments?.[0];
+        if (latestFulfillment && canPrint) {
+          handlePrintChallan(res.data.id, latestFulfillment.id);
+        }
       }
       fetchDeliveryOrders();
     } catch (err: any) {
@@ -1187,7 +1222,7 @@ export const DeliveryOrdersPage: React.FC = () => {
                         <div className="flex items-center justify-between border-b border-surface-border/50 pb-2">
                           <div className="flex items-center gap-2">
                             <span className="font-mono font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
-                              Event #{evt.fulfillmentNumber}
+                              {evt.challanNumber || `Event #${evt.fulfillmentNumber}`}
                             </span>
                             <span className="text-charcoal-600 font-medium">
                               {new Date(evt.fulfilledAt).toLocaleString()}
@@ -1198,6 +1233,23 @@ export const DeliveryOrdersPage: React.FC = () => {
                               </span>
                             )}
                           </div>
+
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handlePrintChallan(activeDO.id, evt.id)}
+                            disabled={loadingPrintId === evt.id || !canPrint}
+                            className="h-7 text-[11px] gap-1 px-2.5 font-medium border-surface-border bg-white hover:bg-brand-50 hover:text-brand-700 hover:border-brand-300 transition-colors"
+                            title={!canPrint ? "Requires 'delivery_orders.print' permission" : "Print Delivery Challan"}
+                          >
+                            {loadingPrintId === evt.id ? (
+                              <RefreshCw className="w-3 h-3 animate-spin text-brand-600" />
+                            ) : (
+                              <Printer className="w-3 h-3 text-brand-600" />
+                            )}
+                            <span>Print Challan</span>
+                          </Button>
                         </div>
 
                         {evt.notes && (
@@ -1305,6 +1357,30 @@ export const DeliveryOrdersPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* PHASE 20D — DELIVERY CHALLAN PRINT MODAL                                  */}
+      {/* ========================================================================= */}
+      {isPrintModalOpen && printData && (
+        <DocumentPrintModal
+          isOpen={isPrintModalOpen}
+          onClose={() => {
+            setIsPrintModalOpen(false);
+            setPrintData(null);
+          }}
+          title={`Delivery Challan — ${printData.challanNumber}`}
+          subtitle={`Linked DO: ${printData.doNumber} · Invoice: ${printData.invoiceNumber}`}
+          defaultLayout="A4"
+          allowThermalToggle={true}
+        >
+          {(layout) => (
+            <DeliveryChallanPrintTemplate
+              challan={printData}
+              layout={layout}
+            />
+          )}
+        </DocumentPrintModal>
       )}
     </div>
   );

@@ -52,6 +52,7 @@ export interface DeliveryFulfillment {
   organizationId: string;
   deliveryOrderId: string;
   fulfillmentNumber: number;
+  challanNumber: string;
   fulfilledAt: string;
   fulfilledById?: string | null;
   notes?: string | null;
@@ -253,5 +254,12 @@ export const deliveryOrdersApi = {
     branchId?: string;
   }): Promise<ApiResponse<EligibleInvoice[]>> => {
     return apiClient.get('/delivery-orders/eligible-invoices', { params });
+  },
+
+  getFulfillmentPrintData: async (
+    id: string,
+    fulfillmentId: string,
+  ): Promise<ApiResponse<any>> => {
+    return apiClient.get(`/delivery-orders/${id}/fulfillments/${fulfillmentId}/print`);
   },
 };

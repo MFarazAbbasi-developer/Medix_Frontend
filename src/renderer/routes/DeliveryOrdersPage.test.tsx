@@ -4,6 +4,7 @@ import { DeliveryOrdersPage } from './DeliveryOrdersPage';
 import { deliveryOrdersApi } from '../api/delivery-orders.api';
 import { customersApi } from '../api/customers.api';
 import { salesOperationsApi } from '../api/sales-operations.api';
+import { useAuthStore } from '../store/authStore';
 
 describe('DeliveryOrdersPage Component', () => {
   const mockDeliveryOrder = {
@@ -267,6 +268,163 @@ describe('DeliveryOrdersPage Component', () => {
         'do-1',
         { cancellationReason: 'Customer canceled delivery' },
       );
+    });
+  });
+
+  describe('Phase 20D — Delivery Challan Printing in UI', () => {
+    const mockDoWithFulfillment = {
+      ...mockDeliveryOrder,
+      status: 'PARTIALLY_DELIVERED' as const,
+      items: [
+        {
+          ...mockDeliveryOrder.items[0],
+          deliveredBilledQuantity: 60,
+          deliveredBonusQuantity: 5,
+        },
+      ],
+      fulfillments: [
+        {
+          id: 'ful-1',
+          organizationId: 'org-1',
+          deliveryOrderId: 'do-1',
+          fulfillmentNumber: 1,
+          challanNumber: 'DC-00001',
+          fulfilledAt: '2026-09-12T10:30:00.000Z',
+          notes: 'Dispatched via Van 3',
+          fulfilledByUser: { id: 'user-1', displayName: 'Admin User', username: 'admin' },
+          items: [
+            {
+              id: 'ful-item-1',
+              fulfillmentId: 'ful-1',
+              deliveryOrderItemId: 'do-item-1',
+              deliveredBilledQuantity: 60,
+              deliveredBonusQuantity: 5,
+              deliveryOrderItem: mockDeliveryOrder.items[0],
+            },
+          ],
+        },
+      ],
+    };
+
+    const mockPrintPayload = {
+      company: {
+        name: 'Medix Pharma Distribution',
+        legalName: 'Medix Healthcare (Pvt) Ltd',
+        address: 'Plot 45, Sector 15, Korangi',
+        city: 'Karachi',
+        phone: '021-35001122',
+        drugSaleLicenseNo: 'DSL-KHI-2026-99',
+      },
+      branch: { name: 'Head Office', code: 'HO' },
+      challanNumber: 'DC-00001',
+      fulfillmentDate: '2026-09-12T10:30:00.000Z',
+      fulfillmentNumber: 1,
+      doNumber: 'DO-00001',
+      invoiceNumber: 'INV-00010',
+      invoiceDate: '2026-09-12T00:00:00.000Z',
+      status: 'PARTIALLY_DELIVERED',
+      notes: 'Dispatched via Van 3',
+      customer: { name: 'Al-Shifa Pharmacy', code: 'CUST-001' },
+      deliveryDestination: {
+        recipientName: 'Dr. Tariq',
+        phone: '03001234567',
+        address: 'Shop 12, Main Market',
+        city: 'Karachi',
+      },
+      salesAttribution: { salesmanName: 'Ahmed Khan', routeName: 'Saddar Route' },
+      dispatchedBy: 'Admin User',
+      lines: [
+        {
+          itemNumber: 1,
+          productName: 'Panadol Extra 500mg',
+          productSku: 'SKU-PAN-500',
+          batchNumber: 'BN-101',
+          expiryDate: '2027-12-31T00:00:00.000Z',
+          orderedBilledQuantity: 100,
+          orderedBonusQuantity: 10,
+          deliveredBilledQuantity: 60,
+          deliveredBonusQuantity: 5,
+          totalDispatchedQuantity: 65,
+        },
+      ],
+      summary: {
+        totalBilledQuantity: 60,
+        totalBonusQuantity: 5,
+        totalDispatchedQuantity: 65,
+        totalLinesCount: 1,
+      },
+    };
+
+    it('renders Print Challan button in fulfillment history and opens print modal on click', async () => {
+      useAuthStore.setState({
+        user: {
+          id: 'user-1',
+          username: 'admin',
+          roles: ['ADMIN'],
+          permissions: ['delivery_orders.view', 'delivery_orders.fulfill', 'delivery_orders.print'],
+        } as any,
+      });
+
+      vi.spyOn(deliveryOrdersApi, 'getDeliveryOrderById').mockResolvedValue({
+        data: mockDoWithFulfillment,
+      } as any);
+
+      vi.spyOn(deliveryOrdersApi, 'getFulfillmentPrintData').mockResolvedValue({
+        data: mockPrintPayload,
+      } as any);
+
+      render(<DeliveryOrdersPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('DO-00001')).toBeInTheDocument();
+      });
+
+      const workspaceBtn = screen.getByRole('button', { name: /workspace/i });
+      fireEvent.click(workspaceBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('DC-00001')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /print challan/i })).toBeInTheDocument();
+      });
+
+      const printBtn = screen.getByRole('button', { name: /print challan/i });
+      fireEvent.click(printBtn);
+
+      await waitFor(() => {
+        expect(deliveryOrdersApi.getFulfillmentPrintData).toHaveBeenCalledWith('do-1', 'ful-1');
+        // Modal title should appear
+        expect(screen.getByText('Delivery Challan — DC-00001')).toBeInTheDocument();
+        expect(screen.getByText('DELIVERY CHALLAN')).toBeInTheDocument();
+      });
+    });
+
+    it('disables Print Challan when user lacks delivery_orders.print permission', async () => {
+      useAuthStore.setState({
+        user: {
+          id: 'user-clerk',
+          username: 'clerk',
+          roles: ['CLERK'],
+          permissions: ['delivery_orders.view'], // no print permission
+        } as any,
+      });
+
+      vi.spyOn(deliveryOrdersApi, 'getDeliveryOrderById').mockResolvedValue({
+        data: mockDoWithFulfillment,
+      } as any);
+
+      render(<DeliveryOrdersPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('DO-00001')).toBeInTheDocument();
+      });
+
+      const workspaceBtn = screen.getByRole('button', { name: /workspace/i });
+      fireEvent.click(workspaceBtn);
+
+      await waitFor(() => {
+        const printBtn = screen.getByRole('button', { name: /print challan/i });
+        expect(printBtn).toBeDisabled();
+      });
     });
   });
 });
