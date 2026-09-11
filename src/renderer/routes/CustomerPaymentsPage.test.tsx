@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { CustomerPaymentsPage } from './CustomerPaymentsPage';
 import { customerPaymentsApi } from '../api/customer-payments.api';
+import { pdcApi, PostDatedCheque } from '../api/pdc.api';
 import * as customersApiModule from '../api/customers.api';
 
 describe('CustomerPaymentsPage Component', () => {
@@ -60,6 +61,27 @@ describe('CustomerPaymentsPage Component', () => {
     ],
   };
 
+  const mockPdc: PostDatedCheque = {
+    id: 'pdc-1',
+    organizationId: 'org-1',
+    branchId: 'branch-1',
+    customerId: 'cust-1',
+    pdcNumber: 'PDC-00001',
+    chequeNumber: 'CHQ-998811',
+    bankName: 'Meezan Bank Ltd',
+    chequeDate: new Date(Date.now() + 86400000 * 10).toISOString(),
+    receivedDate: new Date().toISOString(),
+    amount: 25000,
+    allocatedAmount: 25000,
+    unallocatedAmount: 0,
+    status: 'RECEIVED',
+    notes: 'Advance cheque',
+    customer: mockCustomer,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    allocations: [],
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(customerPaymentsApi, 'getPayments').mockResolvedValue({
@@ -72,6 +94,29 @@ describe('CustomerPaymentsPage Component', () => {
         totalAmount: 5000,
         totalAllocated: 5000,
         totalUnallocated: 0,
+      },
+    });
+
+    vi.spyOn(pdcApi, 'getPdcs').mockResolvedValue({
+      items: [mockPdc],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 1,
+        totalPages: 1,
+      },
+      metrics: {
+        receivedCount: 1,
+        receivedAmount: 25000,
+        depositedCount: 0,
+        depositedAmount: 0,
+        clearedCount: 0,
+        clearedAmount: 0,
+        bouncedCount: 0,
+        bouncedAmount: 0,
+        cancelledCount: 0,
+        cancelledAmount: 0,
+        totalPendingAmount: 25000,
       },
     });
 
@@ -96,7 +141,7 @@ describe('CustomerPaymentsPage Component', () => {
     ]);
   });
 
-  it('renders payment register title and loaded payment vouchers', async () => {
+  it('renders payment register title and loaded payment vouchers in Tab 1', async () => {
     render(<CustomerPaymentsPage />);
 
     expect(screen.getByText('Customer Payments & Receipts')).toBeInTheDocument();
@@ -108,13 +153,35 @@ describe('CustomerPaymentsPage Component', () => {
     });
   });
 
-  it('opens record payment receipt modal and allows customer selection', async () => {
+  it('switches to Post-Dated Cheques tab and displays PDC register', async () => {
     render(<CustomerPaymentsPage />);
 
-    const openBtn = screen.getByText('Record Payment Receipt');
-    fireEvent.click(openBtn);
+    const pdcTabBtn = screen.getByRole('button', { name: /Post-Dated Cheques \(PDC\)/i });
+    fireEvent.click(pdcTabBtn);
 
-    expect(screen.getByText('Record Customer Payment Receipt')).toBeInTheDocument();
-    expect(screen.getByText('Invoice Settlement Allocation')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Post-Dated Cheque (PDC) Custodial Vault')).toBeInTheDocument();
+      expect(screen.getByText('PDC-00001')).toBeInTheDocument();
+      expect(screen.getByText('CHQ-998811')).toBeInTheDocument();
+      expect(screen.getByText('Meezan Bank Ltd')).toBeInTheDocument();
+      expect(screen.getByText('RECEIVED')).toBeInTheDocument();
+    });
+  });
+
+  it('opens Receive New PDC modal from the PDC workspace', async () => {
+    render(<CustomerPaymentsPage />);
+
+    const pdcTabBtn = screen.getByRole('button', { name: /Post-Dated Cheques \(PDC\)/i });
+    fireEvent.click(pdcTabBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('PDC-00001')).toBeInTheDocument();
+    });
+
+    const receiveBtn = screen.getAllByRole('button', { name: /Receive New PDC/i })[0];
+    fireEvent.click(receiveBtn);
+
+    expect(screen.getByText('Receive Post-Dated Cheque (PDC)')).toBeInTheDocument();
+    expect(screen.getByText(/Custodial Vault Invariant:/i)).toBeInTheDocument();
   });
 });

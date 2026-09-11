@@ -565,8 +565,10 @@ describe('SalesPage Component - Keyboard Ergonomics & POS Workflow', () => {
       expect(screen.getByText('Cart Items (1)')).toBeInTheDocument();
     });
 
-    // Blur search input so body receives cart navigation keys
+    // Wait for post-add focus timeout to settle, then blur search input so body receives cart navigation keys
+    await new Promise((r) => setTimeout(r, 80));
     searchInput.blur();
+    document.body.focus();
 
     // Select row via ArrowDown
     fireEvent.keyDown(window, { key: 'ArrowDown' });

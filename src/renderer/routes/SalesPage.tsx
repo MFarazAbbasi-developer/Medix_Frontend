@@ -173,6 +173,8 @@ export const SalesPage: React.FC = () => {
   } | null>(null);
 
   const tenderCashInputRef = useRef<HTMLInputElement>(null);
+  const cartItemsRef = useRef<CartItem[]>(cartItems);
+  cartItemsRef.current = cartItems;
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
@@ -180,6 +182,7 @@ export const SalesPage: React.FC = () => {
   };
 
   const focusProductSearch = useCallback(() => {
+    if (typeof document === 'undefined') return;
     const input = document.getElementById('pos-product-search') as HTMLInputElement | null;
     if (input) {
       input.focus();
@@ -188,6 +191,7 @@ export const SalesPage: React.FC = () => {
   }, []);
 
   const focusCustomerSelect = useCallback(() => {
+    if (typeof document === 'undefined') return;
     const input = document.getElementById('pos-customer-select') as HTMLInputElement | null;
     if (input) {
       input.focus();
@@ -718,7 +722,8 @@ export const SalesPage: React.FC = () => {
 
   // Open Tender Modal
   const handleOpenTender = useCallback(() => {
-    if (cartItems.length === 0) {
+    const currentCart = cartItemsRef.current || [];
+    if (currentCart.length === 0) {
       showFeedback('error', 'Cart is empty. Scan or search products to begin.');
       return;
     }
@@ -742,7 +747,7 @@ export const SalesPage: React.FC = () => {
       tenderCashInputRef.current?.focus();
       tenderCashInputRef.current?.select();
     }, 100);
-  }, [cartItems.length, selectedWarehouseId, netTotal]);
+  }, [selectedWarehouseId, netTotal]);
 
   // Add Split Tender row
   const handleAddSplitTender = () => {

@@ -11,10 +11,14 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
-  Building2,
   TrendingDown,
   Sparkles,
-  Info,
+  Clock,
+  ShieldCheck,
+  Landmark,
+  Eye,
+  Check,
+  AlertTriangle,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -30,15 +34,30 @@ import {
   organizationApi,
   settingsApi,
   Customer,
+  pdcApi,
+  PostDatedCheque,
+  PdcStatus,
+  CreatePdcDto,
+  PdcListMetrics,
 } from '../api';
 import {
   DocumentPrintModal,
   CustomerPaymentReceiptTemplate,
+  PdcReceiptTemplate,
   PrintableCompanyInfo,
   PrintableCustomerPayment,
+  PrintablePdcReceipt,
 } from '../components/printing';
 
+type PageTab = 'PAYMENTS' | 'PDC';
+
 export const CustomerPaymentsPage: React.FC = () => {
+  // Tab State
+  const [activeTab, setActiveTab] = useState<PageTab>('PAYMENTS');
+
+  // =========================================================================
+  // REGULAR PAYMENTS STATE
+  // =========================================================================
   const [payments, setPayments] = useState<CustomerPayment[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
@@ -47,7 +66,6 @@ export const CustomerPaymentsPage: React.FC = () => {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
 
-  // Pagination & Aggregates
   const [totalRecords, setTotalRecords] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
@@ -57,28 +75,13 @@ export const CustomerPaymentsPage: React.FC = () => {
     totalUnallocated: number;
   }>({ totalAmount: 0, totalAllocated: 0, totalUnallocated: 0 });
 
-  // Feedback Toast
-  const [feedback, setFeedback] = useState<{
-    type: 'success' | 'error';
-    message: string;
-  } | null>(null);
-
-  const showFeedback = (type: 'success' | 'error', message: string) => {
-    setFeedback({ type, message });
-    setTimeout(() => setFeedback(null), 4500);
-  };
-
-  // Customers Directory for select dropdowns
-  const [customers, setCustomers] = useState<Customer[]>([]);
-
-  // Create Modal State
+  // Create Regular Payment Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [unpaidInvoices, setUnpaidInvoices] = useState<UnpaidInvoiceSummary[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState<boolean>(false);
 
-  // Form Fields
   const [paymentDate, setPaymentDate] = useState<string>(
     new Date().toISOString().split('T')[0],
   );
@@ -91,49 +94,110 @@ export const CustomerPaymentsPage: React.FC = () => {
   const [allocations, setAllocations] = useState<Record<string, number>>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Details / Print Modal State
+  // View / Print Regular Payment Modal State
   const [viewingPayment, setViewingPayment] = useState<CustomerPayment | null>(null);
+  const [cancellingPayment, setCancellingPayment] = useState<CustomerPayment | null>(null);
+  const [cancellationReason, setCancellationReason] = useState<string>('');
+  const [isCancelling, setIsCancelling] = useState<boolean>(false);
+
+  // =========================================================================
+  // POST-DATED CHEQUES (PDC) STATE (Phase 20E)
+  // =========================================================================
+  const [pdcs, setPdcs] = useState<PostDatedCheque[]>([]);
+  const [isLoadingPdcs, setIsLoadingPdcs] = useState<boolean>(false);
+  const [pdcSearch, setPdcSearch] = useState<string>('');
+  const [pdcStatusFilter, setPdcStatusFilter] = useState<string>('ALL');
+  const [pdcCustomerFilter, setPdcCustomerFilter] = useState<string>('ALL');
+  const [pdcStartDate, setPdcStartDate] = useState<string>('');
+  const [pdcEndDate, setPdcEndDate] = useState<string>('');
+
+  const [pdcCurrentPage, setPdcCurrentPage] = useState<number>(1);
+  const [pdcTotalPages, setPdcTotalPages] = useState<number>(1);
+  const [pdcMetrics, setPdcMetrics] = useState<PdcListMetrics>({
+    receivedCount: 0,
+    receivedAmount: 0,
+    depositedCount: 0,
+    depositedAmount: 0,
+    clearedCount: 0,
+    clearedAmount: 0,
+    bouncedCount: 0,
+    bouncedAmount: 0,
+    cancelledCount: 0,
+    cancelledAmount: 0,
+    totalPendingAmount: 0,
+  });
+
+  // PDC Action Modals
+  const [isCreatePdcModalOpen, setIsCreatePdcModalOpen] = useState<boolean>(false);
+  const [pdcCustomerId, setPdcCustomerId] = useState<string>('');
+  const [pdcCustomerObj, setPdcCustomerObj] = useState<Customer | null>(null);
+  const [pdcChequeNumber, setPdcChequeNumber] = useState<string>('');
+  const [pdcBankName, setPdcBankName] = useState<string>('');
+  const [pdcChequeDate, setPdcChequeDate] = useState<string>('');
+  const [pdcReceivedDate, setPdcReceivedDate] = useState<string>(
+    new Date().toISOString().split('T')[0],
+  );
+  const [pdcAmount, setPdcAmount] = useState<string>('');
+  const [pdcNotes, setPdcNotes] = useState<string>('');
+  const [pdcAllocations, setPdcAllocations] = useState<Record<string, number>>({});
+  const [isSubmittingPdc, setIsSubmittingPdc] = useState<boolean>(false);
+
+  // Deposit PDC Modal
+  const [depositingPdc, setDepositingPdc] = useState<PostDatedCheque | null>(null);
+  const [depositBankName, setDepositBankName] = useState<string>('');
+  const [depositReference, setDepositReference] = useState<string>('');
+  const [depositedAtDate, setDepositedAtDate] = useState<string>(
+    new Date().toISOString().split('T')[0],
+  );
+  const [isDepositing, setIsDepositing] = useState<boolean>(false);
+
+  // Clear PDC Modal
+  const [clearingPdc, setClearingPdc] = useState<PostDatedCheque | null>(null);
+  const [clearedAtDate, setClearedAtDate] = useState<string>(
+    new Date().toISOString().split('T')[0],
+  );
+  const [clearingNotes, setClearingNotes] = useState<string>('');
+  const [isClearing, setIsClearing] = useState<boolean>(false);
+
+  // Bounce PDC Modal
+  const [bouncingPdc, setBouncingPdc] = useState<PostDatedCheque | null>(null);
+  const [bounceReason, setBounceReason] = useState<string>('');
+  const [bouncedAtDate, setBouncedAtDate] = useState<string>(
+    new Date().toISOString().split('T')[0],
+  );
+  const [isBouncing, setIsBouncing] = useState<boolean>(false);
+
+  // Cancel PDC Modal
+  const [cancellingPdc, setCancellingPdc] = useState<PostDatedCheque | null>(null);
+  const [pdcCancellationReason, setPdcCancellationReason] = useState<string>('');
+  const [isCancellingPdc, setIsCancellingPdc] = useState<boolean>(false);
+
+  // View Details PDC Modal
+  const [viewingPdc, setViewingPdc] = useState<PostDatedCheque | null>(null);
+
+  // Print Custody Receipt Modal
+  const [printingPdc, setPrintingPdc] = useState<PostDatedCheque | null>(null);
+
+  // Common Auxiliary State
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [company, setCompany] = useState<PrintableCompanyInfo>({
     name: 'MEDIX Pharmacy',
     legalName: 'MEDIX Pharma Distribution',
   });
   const [settingsMap, setSettingsMap] = useState<Record<string, string>>({});
 
-  // Cancel Modal State
-  const [cancellingPayment, setCancellingPayment] = useState<CustomerPayment | null>(null);
-  const [cancellationReason, setCancellationReason] = useState<string>('');
-  const [isCancelling, setIsCancelling] = useState<boolean>(false);
+  // Toast Feedback
+  const [feedback, setFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
-  // Load Payments list
-  const loadPayments = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await customerPaymentsApi.getPayments({
-        search: search.trim() || undefined,
-        paymentMethod: methodFilter !== 'ALL' ? (methodFilter as PaymentMethod) : undefined,
-        status: statusFilter !== 'ALL' ? (statusFilter as CustomerPaymentStatus) : undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        page: currentPage,
-        limit: 20,
-      });
+  const showFeedback = (type: 'success' | 'error', message: string) => {
+    setFeedback({ type, message });
+    setTimeout(() => setFeedback(null), 4500);
+  };
 
-      setPayments(res.items || []);
-      setTotalRecords(res.total || 0);
-      setTotalPages(res.totalPages || 1);
-      setSummary({
-        totalAmount: Number(res.summary?.totalAmount || 0),
-        totalAllocated: Number(res.summary?.totalAllocated || 0),
-        totalUnallocated: Number(res.summary?.totalUnallocated || 0),
-      });
-    } catch (err: any) {
-      showFeedback('error', err.response?.data?.message || 'Failed to load payments register');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [search, methodFilter, statusFilter, startDate, endDate, currentPage]);
-
-  // Load Customers, Organization & Settings for dropdown and printing
+  // Load Customers & Aux Data
   useEffect(() => {
     const fetchAuxData = async () => {
       try {
@@ -168,11 +232,68 @@ export const CustomerPaymentsPage: React.FC = () => {
     fetchAuxData();
   }, []);
 
-  useEffect(() => {
-    loadPayments();
-  }, [loadPayments]);
+  // Load Regular Payments list
+  const loadPayments = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await customerPaymentsApi.getPayments({
+        search: search.trim() || undefined,
+        paymentMethod: methodFilter !== 'ALL' ? (methodFilter as PaymentMethod) : undefined,
+        status: statusFilter !== 'ALL' ? (statusFilter as CustomerPaymentStatus) : undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        page: currentPage,
+        limit: 20,
+      });
 
-  // When customer is selected in Create Modal, load unpaid invoices
+      setPayments(res.items || []);
+      setTotalRecords(res.total || 0);
+      setTotalPages(res.totalPages || 1);
+      setSummary({
+        totalAmount: Number(res.summary?.totalAmount || 0),
+        totalAllocated: Number(res.summary?.totalAllocated || 0),
+        totalUnallocated: Number(res.summary?.totalUnallocated || 0),
+      });
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.message || 'Failed to load payments register');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [search, methodFilter, statusFilter, startDate, endDate, currentPage]);
+
+  // Load PDCs list
+  const loadPdcs = useCallback(async () => {
+    setIsLoadingPdcs(true);
+    try {
+      const res = await pdcApi.getPdcs({
+        search: pdcSearch.trim() || undefined,
+        status: pdcStatusFilter !== 'ALL' ? (pdcStatusFilter as PdcStatus) : undefined,
+        customerId: pdcCustomerFilter !== 'ALL' ? pdcCustomerFilter : undefined,
+        startDate: pdcStartDate || undefined,
+        endDate: pdcEndDate || undefined,
+        page: pdcCurrentPage,
+        limit: 20,
+      });
+
+      setPdcs(res.items || []);
+      setPdcTotalPages(res.pagination.totalPages || 1);
+      setPdcMetrics(res.metrics);
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.message || 'Failed to load Post-Dated Cheques');
+    } finally {
+      setIsLoadingPdcs(false);
+    }
+  }, [pdcSearch, pdcStatusFilter, pdcCustomerFilter, pdcStartDate, pdcEndDate, pdcCurrentPage]);
+
+  useEffect(() => {
+    if (activeTab === 'PAYMENTS') {
+      loadPayments();
+    } else {
+      loadPdcs();
+    }
+  }, [activeTab, loadPayments, loadPdcs]);
+
+  // Customer unpaid invoices in Regular Payment modal
   useEffect(() => {
     if (!selectedCustomerId) {
       setSelectedCustomer(null);
@@ -200,7 +321,35 @@ export const CustomerPaymentsPage: React.FC = () => {
     fetchInvoices();
   }, [selectedCustomerId, customers]);
 
-  // Handle single invoice allocation change
+  // Customer unpaid invoices in PDC modal
+  useEffect(() => {
+    if (!pdcCustomerId) {
+      setPdcCustomerObj(null);
+      setUnpaidInvoices([]);
+      setPdcAllocations({});
+      return;
+    }
+
+    const found = customers.find((c) => c.id === pdcCustomerId) || null;
+    setPdcCustomerObj(found);
+
+    const fetchInvoices = async () => {
+      setLoadingInvoices(true);
+      try {
+        const invs = await customerPaymentsApi.getUnpaidInvoices(pdcCustomerId);
+        setUnpaidInvoices(invs);
+        setPdcAllocations({});
+      } catch (err: any) {
+        showFeedback('error', err.response?.data?.message || 'Failed to fetch customer unpaid invoices');
+      } finally {
+        setLoadingInvoices(false);
+      }
+    };
+
+    fetchInvoices();
+  }, [pdcCustomerId, customers]);
+
+  // Allocation handlers for Regular Payment
   const handleAllocationChange = (invoiceId: string, val: string, maxBalance: number) => {
     const num = parseFloat(val);
     if (isNaN(num) || num <= 0) {
@@ -209,8 +358,6 @@ export const CustomerPaymentsPage: React.FC = () => {
       setAllocations(next);
       return;
     }
-
-    // Limit to max outstanding balance
     const clamped = Math.min(num, maxBalance);
     setAllocations({
       ...allocations,
@@ -218,7 +365,6 @@ export const CustomerPaymentsPage: React.FC = () => {
     });
   };
 
-  // FIFO Auto-Distribute
   const handleAutoDistribute = () => {
     const totalPay = parseFloat(amountReceived);
     if (isNaN(totalPay) || totalPay <= 0) {
@@ -248,26 +394,72 @@ export const CustomerPaymentsPage: React.FC = () => {
     setAllocations({});
   };
 
-  // Derived calculation in modal
+  // Allocation handlers for PDC
+  const handlePdcAllocationChange = (invoiceId: string, val: string, maxBalance: number) => {
+    const num = parseFloat(val);
+    if (isNaN(num) || num <= 0) {
+      const next = { ...pdcAllocations };
+      delete next[invoiceId];
+      setPdcAllocations(next);
+      return;
+    }
+    const clamped = Math.min(num, maxBalance);
+    setPdcAllocations({
+      ...pdcAllocations,
+      [invoiceId]: Math.round(clamped * 100) / 100,
+    });
+  };
+
+  const handlePdcAutoDistribute = () => {
+    const totalPay = parseFloat(pdcAmount);
+    if (isNaN(totalPay) || totalPay <= 0) {
+      showFeedback('error', 'Please enter a valid cheque amount first to auto-distribute');
+      return;
+    }
+
+    let remaining = totalPay;
+    const nextAlloc: Record<string, number> = {};
+
+    for (const inv of unpaidInvoices) {
+      if (remaining <= 0) break;
+      const bal = Number(inv.balanceAmount);
+      if (bal <= 0) continue;
+
+      const allocated = Math.min(bal, remaining);
+      const rounded = Math.round(allocated * 100) / 100;
+      nextAlloc[inv.id] = rounded;
+      remaining = Math.round((remaining - rounded) * 100) / 100;
+    }
+
+    setPdcAllocations(nextAlloc);
+    showFeedback('success', 'Cheque amount pre-allocated across oldest unpaid invoices (FIFO)');
+  };
+
+  // Derived amounts in Regular Payment modal
   const enteredAmount = parseFloat(amountReceived) || 0;
   const totalAllocatedInModal = Object.values(allocations).reduce((sum, v) => sum + v, 0);
   const roundedAllocated = Math.round(totalAllocatedInModal * 100) / 100;
   const unallocatedRemainder = Math.max(0, Math.round((enteredAmount - roundedAllocated) * 100) / 100);
   const isOverAllocated = roundedAllocated > enteredAmount + 0.001;
 
-  // Submit Payment Receipt
+  // Derived amounts in PDC modal
+  const enteredPdcAmount = parseFloat(pdcAmount) || 0;
+  const totalPdcAllocated = Object.values(pdcAllocations).reduce((sum, v) => sum + v, 0);
+  const roundedPdcAllocated = Math.round(totalPdcAllocated * 100) / 100;
+  const unallocatedPdcRemainder = Math.max(0, Math.round((enteredPdcAmount - roundedPdcAllocated) * 100) / 100);
+  const isPdcOverAllocated = roundedPdcAllocated > enteredPdcAmount + 0.001;
+
+  // Submit Regular Payment
   const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomerId) {
       showFeedback('error', 'Please select a customer');
       return;
     }
-
     if (enteredAmount <= 0) {
       showFeedback('error', 'Payment amount must be greater than zero');
       return;
     }
-
     if (isOverAllocated) {
       showFeedback(
         'error',
@@ -300,9 +492,8 @@ export const CustomerPaymentsPage: React.FC = () => {
       const created = await customerPaymentsApi.createPayment(payload);
       showFeedback('success', `Payment receipt ${created.paymentNumber} posted successfully`);
       setIsCreateModalOpen(false);
-      resetForm();
+      resetRegularForm();
       loadPayments();
-      // Open receipt voucher preview
       setViewingPayment(created);
     } catch (err: any) {
       showFeedback('error', err.response?.data?.message || 'Failed to post customer payment');
@@ -311,7 +502,7 @@ export const CustomerPaymentsPage: React.FC = () => {
     }
   };
 
-  const resetForm = () => {
+  const resetRegularForm = () => {
     setSelectedCustomerId('');
     setSelectedCustomer(null);
     setUnpaidInvoices([]);
@@ -325,8 +516,190 @@ export const CustomerPaymentsPage: React.FC = () => {
     setPaymentDate(new Date().toISOString().split('T')[0]);
   };
 
-  // Cancel / Void Payment
-  const handleConfirmCancel = async () => {
+  // Submit PDC
+  const handleSubmitPdc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pdcCustomerId) {
+      showFeedback('error', 'Please select a customer');
+      return;
+    }
+    if (!pdcChequeNumber.trim()) {
+      showFeedback('error', 'Please enter the cheque number');
+      return;
+    }
+    if (!pdcBankName.trim()) {
+      showFeedback('error', 'Please enter the bank name');
+      return;
+    }
+    if (!pdcChequeDate) {
+      showFeedback('error', 'Please select the cheque maturity date');
+      return;
+    }
+    if (enteredPdcAmount <= 0) {
+      showFeedback('error', 'Cheque face value must be greater than zero');
+      return;
+    }
+    if (isPdcOverAllocated) {
+      showFeedback(
+        'error',
+        `Total pre-allocated (Rs. ${roundedPdcAllocated.toFixed(2)}) cannot exceed cheque amount (Rs. ${enteredPdcAmount.toFixed(2)})`,
+      );
+      return;
+    }
+
+    const payloadAllocations = Object.entries(pdcAllocations)
+      .filter(([_, amt]) => amt > 0)
+      .map(([salesInvoiceId, amountAllocated]) => ({
+        salesInvoiceId,
+        amountAllocated,
+      }));
+
+    const payload: CreatePdcDto = {
+      customerId: pdcCustomerId,
+      chequeNumber: pdcChequeNumber.trim(),
+      bankName: pdcBankName.trim(),
+      chequeDate: pdcChequeDate,
+      receivedDate: pdcReceivedDate || undefined,
+      amount: enteredPdcAmount,
+      notes: pdcNotes.trim() || undefined,
+      allocations: payloadAllocations.length > 0 ? payloadAllocations : undefined,
+    };
+
+    setIsSubmittingPdc(true);
+    try {
+      const created = await pdcApi.createPdc(payload);
+      showFeedback(
+        'success',
+        `PDC ${created.pdcNumber} registered in custody. Zero financial ledger impact until clearance.`,
+      );
+      setIsCreatePdcModalOpen(false);
+      resetPdcForm();
+      loadPdcs();
+      setPrintingPdc(created);
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.message || 'Failed to register Post-Dated Cheque');
+    } finally {
+      setIsSubmittingPdc(false);
+    }
+  };
+
+  const resetPdcForm = () => {
+    setPdcCustomerId('');
+    setPdcCustomerObj(null);
+    setPdcChequeNumber('');
+    setPdcBankName('');
+    setPdcChequeDate('');
+    setPdcReceivedDate(new Date().toISOString().split('T')[0]);
+    setPdcAmount('');
+    setPdcNotes('');
+    setPdcAllocations({});
+  };
+
+  // Deposit PDC
+  const handleConfirmDeposit = async () => {
+    if (!depositingPdc) return;
+    if (!depositBankName.trim()) {
+      showFeedback('error', 'Please provide the deposit bank name');
+      return;
+    }
+
+    setIsDepositing(true);
+    try {
+      await pdcApi.depositPdc(depositingPdc.id, {
+        depositBankName: depositBankName.trim(),
+        depositReference: depositReference.trim() || undefined,
+        depositedAt: depositedAtDate || undefined,
+      });
+      showFeedback('success', `PDC ${depositingPdc.pdcNumber} recorded as deposited in ${depositBankName}`);
+      setDepositingPdc(null);
+      setDepositBankName('');
+      setDepositReference('');
+      loadPdcs();
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.message || 'Failed to deposit PDC');
+    } finally {
+      setIsDepositing(false);
+    }
+  };
+
+  // Clear PDC
+  const handleConfirmClear = async () => {
+    if (!clearingPdc) return;
+
+    setIsClearing(true);
+    try {
+      const cleared = await pdcApi.clearPdc(clearingPdc.id, {
+        clearedAt: clearedAtDate || undefined,
+        notes: clearingNotes.trim() || undefined,
+      });
+      showFeedback(
+        'success',
+        `PDC ${clearingPdc.pdcNumber} cleared! Payment voucher ${cleared.customerPayment?.paymentNumber || ''} created with authoritative ledger credit.`,
+      );
+      setClearingPdc(null);
+      setClearingNotes('');
+      loadPdcs();
+      if (cleared.customerPayment) {
+        setViewingPayment(cleared.customerPayment);
+      }
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.message || 'Failed to clear Post-Dated Cheque');
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  // Bounce PDC
+  const handleConfirmBounce = async () => {
+    if (!bouncingPdc) return;
+    if (!bounceReason.trim()) {
+      showFeedback('error', 'Please enter the bounce/dishonor reason');
+      return;
+    }
+
+    setIsBouncing(true);
+    try {
+      await pdcApi.bouncePdc(bouncingPdc.id, {
+        bounceReason: bounceReason.trim(),
+        bouncedAt: bouncedAtDate || undefined,
+      });
+      showFeedback('success', `PDC ${bouncingPdc.pdcNumber} marked as bounced`);
+      setBouncingPdc(null);
+      setBounceReason('');
+      loadPdcs();
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.message || 'Failed to record bounced PDC');
+    } finally {
+      setIsBouncing(false);
+    }
+  };
+
+  // Cancel PDC
+  const handleConfirmCancelPdc = async () => {
+    if (!cancellingPdc) return;
+    if (!pdcCancellationReason.trim()) {
+      showFeedback('error', 'Please enter the cancellation/return reason');
+      return;
+    }
+
+    setIsCancellingPdc(true);
+    try {
+      await pdcApi.cancelPdc(cancellingPdc.id, {
+        cancellationReason: pdcCancellationReason.trim(),
+      });
+      showFeedback('success', `PDC ${cancellingPdc.pdcNumber} cancelled & returned`);
+      setCancellingPdc(null);
+      setPdcCancellationReason('');
+      loadPdcs();
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.message || 'Failed to cancel PDC');
+    } finally {
+      setIsCancellingPdc(false);
+    }
+  };
+
+  // Cancel Regular Payment
+  const handleConfirmCancelPayment = async () => {
     if (!cancellingPayment) return;
     if (!cancellationReason.trim() || cancellationReason.trim().length < 3) {
       showFeedback('error', 'Please provide a valid cancellation reason (min 3 characters)');
@@ -352,13 +725,21 @@ export const CustomerPaymentsPage: React.FC = () => {
     }
   };
 
-  // View full payment details
-  const handleViewPayment = async (payment: CustomerPayment) => {
-    try {
-      const full = await customerPaymentsApi.getPaymentById(payment.id);
-      setViewingPayment(full);
-    } catch {
-      setViewingPayment(payment);
+  // Maturity calculations helper
+  const getPdcMaturityStatus = (chequeDateStr: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maturity = new Date(chequeDateStr);
+    maturity.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.round((maturity.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return { label: `Matured (${Math.abs(diffDays)}d ago)`, isMature: true, color: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
+    } else if (diffDays === 0) {
+      return { label: 'Matures Today', isMature: true, color: 'text-amber-800 bg-amber-50 border-amber-300 font-bold animate-pulse' };
+    } else {
+      return { label: `Due in ${diffDays} day${diffDays !== 1 ? 's' : ''}`, isMature: false, color: 'text-indigo-700 bg-indigo-50 border-indigo-200' };
     }
   };
 
@@ -394,730 +775,1050 @@ export const CustomerPaymentsPage: React.FC = () => {
                 Customer Payments & Receipts
               </h1>
               <p className="text-xs text-charcoal-500 mt-0.5">
-                Receivables collection, multi-invoice settlement, advance deposits, and cash drawer vouchers
+                Receivables collection, multi-invoice settlement, advance deposits, and post-dated cheque custody
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        {/* Tab Switcher & Header Buttons */}
+        <div className="flex items-center gap-3">
+          {/* Navigation Pill Switcher */}
+          <div className="flex items-center bg-surface-muted p-1 rounded-lg border border-surface-border text-xs font-semibold">
+            <button
+              onClick={() => setActiveTab('PAYMENTS')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all ${
+                activeTab === 'PAYMENTS'
+                  ? 'bg-white text-charcoal-900 shadow-xs font-bold'
+                  : 'text-charcoal-600 hover:text-charcoal-900'
+              }`}
+            >
+              <Receipt className="w-3.5 h-3.5 text-brand-600" />
+              <span>Regular Payments</span>
+              {totalRecords > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-brand-50 text-brand-700">
+                  {totalRecords}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('PDC')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all ${
+                activeTab === 'PDC'
+                  ? 'bg-white text-charcoal-900 shadow-xs font-bold'
+                  : 'text-charcoal-600 hover:text-charcoal-900'
+              }`}
+            >
+              <Landmark className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Post-Dated Cheques (PDC)</span>
+              {(pdcMetrics.receivedCount + pdcMetrics.depositedCount) > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-50 text-indigo-700 font-bold">
+                  {pdcMetrics.receivedCount + pdcMetrics.depositedCount} Pending
+                </span>
+              )}
+            </button>
+          </div>
+
           <Button
             variant="outline"
             size="sm"
-            onClick={loadPayments}
-            disabled={isLoading}
+            onClick={activeTab === 'PAYMENTS' ? loadPayments : loadPdcs}
+            disabled={isLoading || isLoadingPdcs}
             className="flex items-center gap-1.5 text-xs text-charcoal-700 hover:text-charcoal-900"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading || isLoadingPdcs ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
           </Button>
 
-          <Button
-            size="sm"
-            onClick={() => {
-              resetForm();
-              setIsCreateModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 text-xs bg-brand-600 hover:bg-brand-700 text-white font-semibold shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Record Payment Receipt</span>
-          </Button>
+          {activeTab === 'PAYMENTS' ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                resetRegularForm();
+                setIsCreateModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 text-xs bg-brand-600 hover:bg-brand-700 text-white font-semibold shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Record Payment Receipt</span>
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => {
+                resetPdcForm();
+                setIsCreatePdcModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Receive New PDC</span>
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 bg-white border border-surface-border shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-charcoal-500">Total Collected</span>
-            <span className="p-1.5 rounded-md bg-brand-50 text-brand-600">
-              <Receipt className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-2 text-lg font-bold text-charcoal-900 tracking-tight">
-            Rs. {summary.totalAmount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
-          </div>
-          <p className="text-[11px] text-charcoal-400 mt-0.5">
-            {totalRecords} payment voucher{totalRecords !== 1 ? 's' : ''} in query
-          </p>
-        </Card>
+      {/* ========================================================================= */}
+      {/* TAB 1: REGULAR PAYMENTS CONTENT */}
+      {/* ========================================================================= */}
+      {activeTab === 'PAYMENTS' && (
+        <>
+          {/* Summary KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="p-4 bg-white border border-surface-border shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-charcoal-500">Total Collected</span>
+                <span className="p-1.5 rounded-md bg-brand-50 text-brand-600">
+                  <Receipt className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="mt-2 text-lg font-bold text-charcoal-900 tracking-tight">
+                Rs. {summary.totalAmount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[11px] text-charcoal-400 mt-0.5">
+                {totalRecords} payment voucher{totalRecords !== 1 ? 's' : ''} in query
+              </p>
+            </Card>
 
-        <Card className="p-4 bg-white border border-surface-border shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-emerald-600">Settled to Invoices</span>
-            <span className="p-1.5 rounded-md bg-emerald-50 text-emerald-600">
-              <TrendingDown className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-2 text-lg font-bold text-emerald-700 tracking-tight">
-            Rs. {summary.totalAllocated.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
-          </div>
-          <p className="text-[11px] text-charcoal-400 mt-0.5">Applied directly against receivables</p>
-        </Card>
+            <Card className="p-4 bg-white border border-surface-border shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-emerald-600">Settled to Invoices</span>
+                <span className="p-1.5 rounded-md bg-emerald-50 text-emerald-600">
+                  <TrendingDown className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="mt-2 text-lg font-bold text-emerald-700 tracking-tight">
+                Rs. {summary.totalAllocated.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[11px] text-charcoal-400 mt-0.5">Applied directly against receivables</p>
+            </Card>
 
-        <Card className="p-4 bg-white border border-surface-border shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-amber-600">Unallocated Advance</span>
-            <span className="p-1.5 rounded-md bg-amber-50 text-amber-600">
-              <Sparkles className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-2 text-lg font-bold text-amber-700 tracking-tight">
-            Rs. {summary.totalUnallocated.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
-          </div>
-          <p className="text-[11px] text-charcoal-400 mt-0.5">Held on account as customer credit</p>
-        </Card>
+            <Card className="p-4 bg-white border border-surface-border shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-amber-600">Unallocated Advance</span>
+                <span className="p-1.5 rounded-md bg-amber-50 text-amber-600">
+                  <Sparkles className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="mt-2 text-lg font-bold text-amber-700 tracking-tight">
+                Rs. {summary.totalUnallocated.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[11px] text-charcoal-400 mt-0.5">Held on account as customer credit</p>
+            </Card>
 
-        <Card className="p-4 bg-white border border-surface-border shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-charcoal-500">Allocation Rate</span>
-            <span className="p-1.5 rounded-md bg-surface-muted text-charcoal-600">
-              <FileText className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-2 text-lg font-bold text-charcoal-900 tracking-tight">
-            {summary.totalAmount > 0
-              ? `${Math.round((summary.totalAllocated / summary.totalAmount) * 100)}%`
-              : '0%'}
-          </div>
-          <p className="text-[11px] text-charcoal-400 mt-0.5">Direct invoice coverage</p>
-        </Card>
-      </div>
-
-      {/* Filter Bar */}
-      <Card className="p-3.5 bg-white border border-surface-border shadow-xs">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-center">
-          {/* Search Box */}
-          <div className="relative md:col-span-2">
-            <Search className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input
-              type="text"
-              placeholder="Search receipt #, customer, cheque #, reference..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 text-xs"
-            />
+            <Card className="p-4 bg-white border border-surface-border shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-charcoal-500">Allocation Rate</span>
+                <span className="p-1.5 rounded-md bg-surface-muted text-charcoal-600">
+                  <FileText className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="mt-2 text-lg font-bold text-charcoal-900 tracking-tight">
+                {summary.totalAmount > 0
+                  ? `${Math.round((summary.totalAllocated / summary.totalAmount) * 100)}%`
+                  : '0%'}
+              </div>
+              <p className="text-[11px] text-charcoal-400 mt-0.5">Direct invoice coverage</p>
+            </Card>
           </div>
 
-          {/* Payment Method Filter */}
-          <div>
-            <select
-              value={methodFilter}
-              onChange={(e) => setMethodFilter(e.target.value)}
-              className="w-full text-xs rounded-md border border-charcoal-200 bg-white px-2.5 py-2 text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
-            >
-              <option value="ALL">All Payment Methods</option>
-              <option value="CASH">Cash</option>
-              <option value="BANK_TRANSFER">Bank Transfer</option>
-              <option value="CHEQUE">Cheque</option>
-              <option value="ONLINE">Online / IBFT</option>
-              <option value="CREDIT_CARD">Credit Card</option>
-            </select>
-          </div>
+          {/* Filter Bar */}
+          <Card className="p-3.5 bg-white border border-surface-border shadow-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-center">
+              <div className="relative md:col-span-2">
+                <Search className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input
+                  type="text"
+                  placeholder="Search receipt #, customer, cheque #, reference..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 text-xs"
+                />
+              </div>
 
-          {/* Status Filter */}
-          <div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full text-xs rounded-md border border-charcoal-200 bg-white px-2.5 py-2 text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="POSTED">Posted (Valid)</option>
-              <option value="CANCELLED">Cancelled / Voided</option>
-            </select>
-          </div>
+              <div>
+                <select
+                  value={methodFilter}
+                  onChange={(e) => setMethodFilter(e.target.value)}
+                  className="w-full text-xs h-9 rounded-md border border-surface-border bg-white px-3 py-1 text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="ALL">All Payment Modes</option>
+                  <option value="CASH">Cash</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="CHEQUE">Spot Cheque</option>
+                  <option value="ONLINE">Online Portal</option>
+                  <option value="CREDIT_CARD">Credit / Debit Card</option>
+                </select>
+              </div>
 
-          {/* Clear Filters */}
-          <div className="flex items-center gap-2">
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="text-xs py-1.5"
-              title="From Date"
-            />
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="text-xs py-1.5"
-              title="To Date"
-            />
-          </div>
-        </div>
-      </Card>
+              <div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full text-xs h-9 rounded-md border border-surface-border bg-white px-3 py-1 text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="POSTED">Posted (Valid)</option>
+                  <option value="CANCELLED">Voided / Cancelled</option>
+                </select>
+              </div>
 
-      {/* Payments Register Table */}
-      <Card className="overflow-hidden bg-white border border-surface-border shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-charcoal-700">
-            <thead className="bg-surface-muted border-b border-surface-border text-charcoal-600 font-semibold uppercase tracking-wider text-[10px]">
-              <tr>
-                <th className="py-2.5 px-3.5">Receipt #</th>
-                <th className="py-2.5 px-3.5">Date</th>
-                <th className="py-2.5 px-3.5">Customer</th>
-                <th className="py-2.5 px-3.5">Method</th>
-                <th className="py-2.5 px-3.5 text-right">Total (PKR)</th>
-                <th className="py-2.5 px-3.5 text-right">Allocated</th>
-                <th className="py-2.5 px-3.5 text-right">Advance</th>
-                <th className="py-2.5 px-3.5 text-center">Status</th>
-                <th className="py-2.5 px-3.5">Reference / Cheque</th>
-                <th className="py-2.5 px-3.5">Posted By</th>
-                <th className="py-2.5 px-3.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-border">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={11} className="py-12 text-center text-charcoal-400">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-brand-500" />
-                    <span>Loading customer payments register...</span>
-                  </td>
-                </tr>
-              ) : payments.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="py-12 text-center text-charcoal-400">
-                    <Receipt className="w-8 h-8 mx-auto mb-2 text-charcoal-300 stroke-[1.5]" />
-                    <p className="font-medium text-charcoal-600">No payment receipts found</p>
-                    <p className="text-[11px] mt-0.5">
-                      Record collections using the "+ Record Payment Receipt" button above
-                    </p>
-                  </td>
-                </tr>
-              ) : (
-                payments.map((p) => {
-                  const isCancelled = p.status === 'CANCELLED';
-                  return (
-                    <tr
-                      key={p.id}
-                      className={`hover:bg-surface-muted/60 transition-colors ${
-                        isCancelled ? 'bg-rose-50/20 text-charcoal-400' : ''
-                      }`}
-                    >
-                      <td className="py-3 px-3.5 font-semibold text-charcoal-900 whitespace-nowrap">
-                        <span className="font-mono text-xs">{p.paymentNumber}</span>
+              <div className="flex items-center gap-1">
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="text-xs h-9"
+                  title="From Date"
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="text-xs h-9"
+                  title="To Date"
+                />
+              </div>
+            </div>
+          </Card>
+
+          {/* Payments Table */}
+          <Card className="bg-white border border-surface-border shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-surface-muted border-b border-surface-border text-charcoal-600 font-semibold uppercase tracking-wider text-[11px]">
+                    <th className="py-3 px-4">Receipt #</th>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Customer</th>
+                    <th className="py-3 px-4">Method & Ref</th>
+                    <th className="py-3 px-4 text-right">Amount (Rs.)</th>
+                    <th className="py-3 px-4 text-right">Settled</th>
+                    <th className="py-3 px-4 text-right">Advance</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border text-charcoal-800">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center text-charcoal-400">
+                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-brand-600" />
+                        <span>Loading payment receipts...</span>
                       </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-charcoal-600">
-                        {new Date(p.paymentDate).toLocaleDateString('en-PK', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
+                    </tr>
+                  ) : payments.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center text-charcoal-400">
+                        <Receipt className="w-8 h-8 mx-auto mb-2 text-charcoal-300 stroke-1" />
+                        <p className="font-semibold text-charcoal-600">No payment receipts found</p>
+                        <p className="text-xs mt-0.5">Try adjusting your filters or record a new customer receipt.</p>
                       </td>
-                      <td className="py-3 px-3.5">
-                        <div className="font-medium text-charcoal-900">
-                          {p.customer?.name || 'Unknown Customer'}
-                        </div>
-                        <div className="text-[10px] font-mono text-charcoal-400">
-                          {p.customer?.code}
-                        </div>
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-charcoal-100 text-charcoal-700">
-                          {p.paymentMethod.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3.5 text-right font-bold text-charcoal-900 whitespace-nowrap">
-                        Rs. {Number(p.amount).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-3.5 text-right font-medium text-emerald-700 whitespace-nowrap">
-                        Rs.{' '}
-                        {Number(p.allocatedAmount).toLocaleString('en-PK', {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td className="py-3 px-3.5 text-right font-medium text-amber-700 whitespace-nowrap">
-                        {Number(p.unallocatedAmount) > 0 ? (
-                          <span>
-                            Rs.{' '}
-                            {Number(p.unallocatedAmount).toLocaleString('en-PK', {
-                              minimumFractionDigits: 2,
-                            })}
-                          </span>
-                        ) : (
-                          <span className="text-charcoal-300">-</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3.5 text-center whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            p.status === 'POSTED'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-rose-100 text-rose-800'
+                    </tr>
+                  ) : (
+                    payments.map((p) => {
+                      const isCancelled = p.status === 'CANCELLED';
+                      return (
+                        <tr
+                          key={p.id}
+                          className={`hover:bg-surface-muted/50 transition-colors ${
+                            isCancelled ? 'bg-rose-50/30 opacity-75' : ''
                           }`}
                         >
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3.5 text-charcoal-600 whitespace-nowrap">
-                        {p.referenceNumber || p.bankName ? (
-                          <div>
-                            <span className="font-mono text-[11px] font-medium">
-                              {p.referenceNumber || 'N/A'}
-                            </span>
-                            {p.bankName && (
-                              <span className="text-[10px] text-charcoal-400 block">
-                                {p.bankName}
-                              </span>
+                          <td className="py-3 px-4 font-mono font-bold text-brand-700">
+                            {p.paymentNumber}
+                          </td>
+                          <td className="py-3 px-4 text-charcoal-600 whitespace-nowrap">
+                            {new Date(p.paymentDate).toLocaleDateString('en-GB')}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-charcoal-900">{p.customer?.name || 'Walk-in'}</div>
+                            {p.customer?.code && (
+                              <div className="text-[10px] text-charcoal-400 font-mono">{p.customer.code}</div>
                             )}
-                          </div>
-                        ) : (
-                          <span className="text-charcoal-300">-</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-charcoal-600 text-[11px]">
-                        {p.postedByUser?.displayName || p.postedByUser?.username || 'System'}
-                      </td>
-                      <td className="py-3 px-3.5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewPayment(p)}
-                            title="View / Print Voucher"
-                            className="p-1 h-7 w-7 text-charcoal-600 hover:text-brand-600"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                          </Button>
-
-                          {p.status === 'POSTED' && (
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="font-medium">{p.paymentMethod.replace('_', ' ')}</span>
+                            {p.referenceNumber && (
+                              <div className="text-[10px] text-charcoal-500 font-mono">Ref: {p.referenceNumber}</div>
+                            )}
+                            {p.bankName && (
+                              <div className="text-[10px] text-charcoal-400">{p.bankName}</div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-charcoal-900">
+                            Rs. {Number(p.amount).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono text-emerald-700 font-medium">
+                            Rs. {Number(p.allocatedAmount).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono text-amber-700 font-medium">
+                            Rs. {Number(p.unallocatedAmount).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                isCancelled
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              {p.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => {
-                                setCancellingPayment(p);
-                                setCancellationReason('');
-                              }}
-                              title="Void / Cancel Payment"
-                              className="p-1 h-7 w-7 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                              onClick={() => setViewingPayment(p)}
+                              title="Print / View Voucher"
+                              className="h-7 w-7 p-0 text-charcoal-600 hover:text-charcoal-900"
                             >
-                              <Ban className="w-3.5 h-3.5" />
+                              <Printer className="w-3.5 h-3.5" />
                             </Button>
-                          )}
-                        </div>
+                            {!isCancelled && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setCancellationReason('');
+                                  setCancellingPayment(p);
+                                }}
+                                title="Void Payment"
+                                className="h-7 w-7 p-0 text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+                              >
+                                <Ban className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Regular Pagination */}
+            {totalPages > 1 && (
+              <div className="p-3 border-t border-surface-border flex items-center justify-between text-xs text-charcoal-600">
+                <span>Page {currentPage} of {totalPages}</span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="h-7 px-2.5 text-xs"
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="h-7 px-2.5 text-xs"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 2: POST-DATED CHEQUES (PDC) CONTENT (Phase 20E) */}
+      {/* ========================================================================= */}
+      {activeTab === 'PDC' && (
+        <>
+          {/* PDC Custodial Banner */}
+          <div className="bg-indigo-950 text-white rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm border border-indigo-900">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-lg bg-indigo-900/80 text-indigo-200 shrink-0 mt-0.5">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-indigo-100 flex items-center gap-2">
+                  Post-Dated Cheque (PDC) Custodial Vault
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-indigo-800 text-indigo-200 border border-indigo-700">
+                    Pharma Receivables Rule
+                  </span>
+                </h3>
+                <p className="text-xs text-indigo-200/80 mt-1 max-w-3xl leading-relaxed">
+                  PDCs are custodial financial instruments. Receiving or depositing a cheque does <strong>not</strong> modify customer balances or ledger receivables until bank clearance occurs on or after maturity.
+                </p>
+              </div>
+            </div>
+
+            <Button
+              size="sm"
+              onClick={() => {
+                resetPdcForm();
+                setIsCreatePdcModalOpen(true);
+              }}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold text-xs shrink-0 shadow-sm"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              <span>Receive New PDC</span>
+            </Button>
+          </div>
+
+          {/* PDC KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+            <Card className="p-3.5 bg-white border border-surface-border shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-blue-700">In Custody (Vault)</span>
+                <span className="p-1 rounded bg-blue-50 text-blue-600">
+                  <Clock className="w-3.5 h-3.5" />
+                </span>
+              </div>
+              <div className="mt-1.5 text-base font-bold text-blue-950 font-mono">
+                Rs. {pdcMetrics.receivedAmount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[10.5px] text-charcoal-500 mt-0.5">
+                {pdcMetrics.receivedCount} cheque{pdcMetrics.receivedCount !== 1 ? 's' : ''} awaiting deposit
+              </p>
+            </Card>
+
+            <Card className="p-3.5 bg-white border border-surface-border shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-amber-700">In Bank Clearing</span>
+                <span className="p-1 rounded bg-amber-50 text-amber-600">
+                  <Landmark className="w-3.5 h-3.5" />
+                </span>
+              </div>
+              <div className="mt-1.5 text-base font-bold text-amber-950 font-mono">
+                Rs. {pdcMetrics.depositedAmount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[10.5px] text-charcoal-500 mt-0.5">
+                {pdcMetrics.depositedCount} cheque{pdcMetrics.depositedCount !== 1 ? 's' : ''} deposited
+              </p>
+            </Card>
+
+            <Card className="p-3.5 bg-white border border-surface-border shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-emerald-700">Cleared & Settled</span>
+                <span className="p-1 rounded bg-emerald-50 text-emerald-600">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </span>
+              </div>
+              <div className="mt-1.5 text-base font-bold text-emerald-950 font-mono">
+                Rs. {pdcMetrics.clearedAmount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[10.5px] text-charcoal-500 mt-0.5">
+                {pdcMetrics.clearedCount} credited to ledger
+              </p>
+            </Card>
+
+            <Card className="p-3.5 bg-white border border-surface-border shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-rose-700">Bounced / Dishonored</span>
+                <span className="p-1 rounded bg-rose-50 text-rose-600">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                </span>
+              </div>
+              <div className="mt-1.5 text-base font-bold text-rose-950 font-mono">
+                Rs. {pdcMetrics.bouncedAmount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[10.5px] text-charcoal-500 mt-0.5">
+                {pdcMetrics.bouncedCount} returned by bank
+              </p>
+            </Card>
+
+            <Card className="p-3.5 bg-indigo-50/50 border border-indigo-100 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-indigo-900">Total Pending Face Value</span>
+                <span className="p-1 rounded bg-indigo-100 text-indigo-700 font-bold">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                </span>
+              </div>
+              <div className="mt-1.5 text-base font-bold text-indigo-950 font-mono">
+                Rs. {pdcMetrics.totalPendingAmount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[10.5px] text-indigo-700 mt-0.5">
+                Custody + Deposited total
+              </p>
+            </Card>
+          </div>
+
+          {/* PDC Filter Bar */}
+          <Card className="p-3.5 bg-white border border-surface-border shadow-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-center">
+              <div className="relative md:col-span-2">
+                <Search className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input
+                  type="text"
+                  placeholder="Search PDC #, cheque #, bank, customer..."
+                  value={pdcSearch}
+                  onChange={(e) => setPdcSearch(e.target.value)}
+                  className="pl-9 text-xs"
+                />
+              </div>
+
+              <div>
+                <select
+                  value={pdcStatusFilter}
+                  onChange={(e) => setPdcStatusFilter(e.target.value)}
+                  className="w-full text-xs h-9 rounded-md border border-surface-border bg-white px-3 py-1 text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="ALL">All PDC Statuses</option>
+                  <option value="RECEIVED">Received (In Custody)</option>
+                  <option value="DEPOSITED">Deposited (In Bank)</option>
+                  <option value="CLEARED">Cleared (Settled)</option>
+                  <option value="BOUNCED">Bounced</option>
+                  <option value="CANCELLED">Cancelled / Returned</option>
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={pdcCustomerFilter}
+                  onChange={(e) => setPdcCustomerFilter(e.target.value)}
+                  className="w-full text-xs h-9 rounded-md border border-surface-border bg-white px-3 py-1 text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="ALL">All Customers</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <Input
+                  type="date"
+                  value={pdcStartDate}
+                  onChange={(e) => setPdcStartDate(e.target.value)}
+                  className="text-xs h-9"
+                  title="Cheque Maturity From"
+                />
+                <Input
+                  type="date"
+                  value={pdcEndDate}
+                  onChange={(e) => setPdcEndDate(e.target.value)}
+                  className="text-xs h-9"
+                  title="Cheque Maturity To"
+                />
+              </div>
+            </div>
+          </Card>
+
+          {/* PDC Table */}
+          <Card className="bg-white border border-surface-border shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-surface-muted border-b border-surface-border text-charcoal-600 font-semibold uppercase tracking-wider text-[11px]">
+                    <th className="py-3 px-4">PDC #</th>
+                    <th className="py-3 px-4">Cheque # & Bank</th>
+                    <th className="py-3 px-4">Customer</th>
+                    <th className="py-3 px-4">Maturity (Cheque Date)</th>
+                    <th className="py-3 px-4 text-right">Face Value (Rs.)</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4">Deposit / Settlement Ref</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border text-charcoal-800">
+                  {isLoadingPdcs ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-charcoal-400">
+                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-600" />
+                        <span>Loading post-dated cheques register...</span>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                  ) : pdcs.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-charcoal-400">
+                        <Landmark className="w-8 h-8 mx-auto mb-2 text-charcoal-300 stroke-1" />
+                        <p className="font-semibold text-charcoal-600">No Post-Dated Cheques in register</p>
+                        <p className="text-xs mt-0.5">Click "Receive New PDC" to accept custody of a post-dated cheque.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    pdcs.map((pdc) => {
+                      const maturityInfo = getPdcMaturityStatus(pdc.chequeDate);
+                      const isReceived = pdc.status === 'RECEIVED';
+                      const isDeposited = pdc.status === 'DEPOSITED';
+                      const isCleared = pdc.status === 'CLEARED';
+                      const isBounced = pdc.status === 'BOUNCED';
+                      const isCancelled = pdc.status === 'CANCELLED';
 
-        {/* Pagination Bar */}
-        {totalPages > 1 && (
-          <div className="p-3 border-t border-surface-border flex items-center justify-between text-xs text-charcoal-600">
-            <div>
-              Showing page <span className="font-semibold">{currentPage}</span> of{' '}
-              <span className="font-semibold">{totalPages}</span> ({totalRecords} items)
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="text-xs"
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="text-xs"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        )}
-      </Card>
+                      return (
+                        <tr
+                          key={pdc.id}
+                          className={`hover:bg-surface-muted/50 transition-colors ${
+                            isBounced ? 'bg-rose-50/20' : isCancelled ? 'bg-charcoal-50/50 opacity-70' : ''
+                          }`}
+                        >
+                          <td className="py-3 px-4">
+                            <span className="font-mono font-bold text-indigo-900 block">
+                              {pdc.pdcNumber}
+                            </span>
+                            <span className="text-[10px] text-charcoal-400 block">
+                              Rec: {new Date(pdc.receivedDate).toLocaleDateString('en-GB')}
+                            </span>
+                          </td>
 
-      {/* ========================================================================= */}
-      {/* RECORD CUSTOMER PAYMENT RECEIPT MODAL */}
-      {/* ========================================================================= */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="relative w-full max-w-4xl max-h-[90vh] bg-white rounded-xl shadow-2xl border border-surface-border flex flex-col overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border bg-surface-muted/40">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-brand-50 text-brand-600 border border-brand-100">
-                  <CreditCard className="w-5 h-5" />
+                          <td className="py-3 px-4">
+                            <div className="font-mono font-bold text-charcoal-900">{pdc.chequeNumber}</div>
+                            <div className="text-[11px] text-charcoal-600">{pdc.bankName}</div>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-charcoal-900">{pdc.customer?.name || 'Customer'}</div>
+                            <div className="text-[10px] text-charcoal-400 font-mono">{pdc.customer?.code}</div>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-charcoal-900 whitespace-nowrap">
+                              {new Date(pdc.chequeDate).toLocaleDateString('en-GB')}
+                            </div>
+                            <span
+                              className={`inline-block px-1.5 py-0.2 rounded text-[10px] border font-medium mt-0.5 ${maturityInfo.color}`}
+                            >
+                              {maturityInfo.label}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 text-right font-mono font-bold text-charcoal-900">
+                            Rs. {Number(pdc.amount).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+                          </td>
+
+                          <td className="py-3 px-4 text-center">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                isReceived
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : isDeposited
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : isCleared
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : isBounced
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-gray-200 text-gray-800'
+                              }`}
+                            >
+                              {pdc.status}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 text-xs text-charcoal-600">
+                            {isCleared && pdc.customerPayment && (
+                              <button
+                                onClick={() => setViewingPayment(pdc.customerPayment!)}
+                                className="text-emerald-700 hover:underline font-mono font-semibold flex items-center gap-1"
+                              >
+                                <Receipt className="w-3 h-3" />
+                                {pdc.customerPayment.paymentNumber}
+                              </button>
+                            )}
+                            {isDeposited && pdc.depositBankName && (
+                              <div className="text-[11px] text-amber-800">
+                                <strong>Dep:</strong> {pdc.depositBankName} {pdc.depositReference ? `(${pdc.depositReference})` : ''}
+                              </div>
+                            )}
+                            {isBounced && (
+                              <div className="text-[10px] text-rose-700 font-medium">
+                                Reason: {pdc.bounceReason}
+                              </div>
+                            )}
+                            {isCancelled && (
+                              <div className="text-[10px] text-gray-500 font-medium">
+                                Reason: {pdc.cancellationReason}
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                            {/* Deposit Button (if RECEIVED) */}
+                            {isReceived && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setDepositBankName('');
+                                  setDepositReference('');
+                                  setDepositingPdc(pdc);
+                                }}
+                                className="h-7 px-2 text-[11px] bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100 font-semibold"
+                                title="Record bank deposit"
+                              >
+                                Deposit
+                              </Button>
+                            )}
+
+                            {/* Clear Button (if RECEIVED or DEPOSITED) */}
+                            {(isReceived || isDeposited) && (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setClearingNotes('');
+                                  setClearingPdc(pdc);
+                                }}
+                                disabled={!maturityInfo.isMature}
+                                title={
+                                  maturityInfo.isMature
+                                    ? 'Execute bank clearance and generate customer payment receipt'
+                                    : 'Early clearance is disallowed. Cheque must reach maturity date.'
+                                }
+                                className={`h-7 px-2 text-[11px] font-semibold text-white ${
+                                  maturityInfo.isMature
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 shadow-xs'
+                                    : 'bg-gray-300 cursor-not-allowed text-gray-600'
+                                }`}
+                              >
+                                Clear
+                              </Button>
+                            )}
+
+                            {/* Bounce Button */}
+                            {(isReceived || isDeposited) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setBounceReason('');
+                                  setBouncingPdc(pdc);
+                                }}
+                                className="h-7 px-2 text-[11px] text-rose-700 border-rose-200 hover:bg-rose-50"
+                                title="Mark as bounced/dishonored"
+                              >
+                                Bounce
+                              </Button>
+                            )}
+
+                            {/* Cancel / Return Button */}
+                            {(isReceived || isDeposited) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setPdcCancellationReason('');
+                                  setCancellingPdc(pdc);
+                                }}
+                                className="h-7 px-2 text-[11px] text-gray-600 border-gray-200 hover:bg-gray-100"
+                                title="Cancel / return cheque to customer"
+                              >
+                                Cancel
+                              </Button>
+                            )}
+
+                            {/* Print Custody Receipt */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setPrintingPdc(pdc)}
+                              title="Print Custody Acknowledgment Receipt"
+                              className="h-7 w-7 p-0 text-indigo-700 hover:bg-indigo-50"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                            </Button>
+
+                            {/* View Full Info Drawer/Modal */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setViewingPdc(pdc)}
+                              title="View Lifecycle Timeline"
+                              className="h-7 w-7 p-0 text-charcoal-600 hover:text-charcoal-900"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* PDC Pagination */}
+            {pdcTotalPages > 1 && (
+              <div className="p-3 border-t border-surface-border flex items-center justify-between text-xs text-charcoal-600">
+                <span>Page {pdcCurrentPage} of {pdcTotalPages}</span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pdcCurrentPage <= 1}
+                    onClick={() => setPdcCurrentPage((p) => Math.max(1, p - 1))}
+                    className="h-7 px-2.5 text-xs"
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pdcCurrentPage >= pdcTotalPages}
+                    onClick={() => setPdcCurrentPage((p) => Math.min(pdcTotalPages, p + 1))}
+                    className="h-7 px-2.5 text-xs"
+                  >
+                    Next
+                  </Button>
                 </div>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: RECEIVE NEW PDC */}
+      {/* ========================================================================= */}
+      {isCreatePdcModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl border border-surface-border overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 bg-indigo-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Landmark className="w-5 h-5 text-indigo-300" />
                 <div>
-                  <h2 className="text-base font-bold text-charcoal-900">
-                    Record Customer Payment Receipt
-                  </h2>
-                  <p className="text-xs text-charcoal-500">
-                    Collect outstanding receivables or accept customer advance deposits
+                  <h2 className="text-base font-bold">Receive Post-Dated Cheque (PDC)</h2>
+                  <p className="text-[11px] text-indigo-200">
+                    Safe custody registration with intended invoice settlement pre-allocation
                   </p>
                 </div>
               </div>
               <button
-                type="button"
-                onClick={() => setIsCreateModalOpen(false)}
-                className="p-1.5 rounded-lg text-charcoal-400 hover:text-charcoal-700 hover:bg-surface-muted transition-colors"
+                onClick={() => setIsCreatePdcModalOpen(false)}
+                className="text-indigo-200 hover:text-white p-1 rounded-md"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <form onSubmit={handleSubmitPayment} className="flex flex-col flex-1 overflow-y-auto">
-              <div className="p-6 space-y-6">
-                {/* 1. Header Details Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Customer Select */}
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-charcoal-800 mb-1.5">
-                      Select Customer <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={selectedCustomerId}
-                      onChange={(e) => setSelectedCustomerId(e.target.value)}
-                      required
-                      className="w-full text-xs rounded-md border border-charcoal-300 bg-white px-3 py-2 text-charcoal-900 font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
-                    >
-                      <option value="">-- Choose Customer --</option>
-                      {customers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.code} - {c.name} (Balance: Rs.{' '}
-                          {Number(c.currentBalance).toLocaleString('en-PK', {
-                            minimumFractionDigits: 2,
-                          })}
-                          )
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+            <form onSubmit={handleSubmitPdc} className="p-6 overflow-y-auto space-y-4 flex-1">
+              <div className="bg-amber-50 border-l-4 border-amber-500 p-2.5 text-[11px] text-amber-900 rounded">
+                <strong>Custodial Vault Invariant:</strong> Registering a PDC does <strong>not</strong> affect customer ledger balance, invoice balances, or credit limit usage until bank clearance occurs at maturity.
+              </div>
 
-                  {/* Payment Date */}
-                  <div>
-                    <label className="block text-xs font-semibold text-charcoal-800 mb-1.5">
-                      Receipt Date <span className="text-rose-500">*</span>
-                    </label>
-                    <Input
-                      type="date"
-                      value={paymentDate}
-                      onChange={(e) => setPaymentDate(e.target.value)}
-                      required
-                      className="text-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* Customer Balance Banner */}
-                {selectedCustomer && (
-                  <div className="p-3.5 rounded-lg bg-surface-muted/60 border border-surface-border flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-charcoal-500" />
-                      <div>
-                        <span className="text-xs font-bold text-charcoal-900">
-                          {selectedCustomer.name}
-                        </span>
-                        <span className="text-[11px] text-charcoal-500 ml-2">
-                          ({selectedCustomer.customerType})
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] uppercase font-semibold text-charcoal-500 block">
-                        Current Balance
-                      </span>
-                      <span
-                        className={`text-xs font-bold ${
-                          Number(selectedCustomer.currentBalance) > 0
-                            ? 'text-amber-700'
-                            : Number(selectedCustomer.currentBalance) < 0
-                            ? 'text-emerald-700'
-                            : 'text-charcoal-600'
-                        }`}
-                      >
-                        {Number(selectedCustomer.currentBalance) > 0
-                          ? `Rs. ${Number(selectedCustomer.currentBalance).toLocaleString('en-PK', {
-                              minimumFractionDigits: 2,
-                            })} (Receivable Debt)`
-                          : Number(selectedCustomer.currentBalance) < 0
-                          ? `Rs. ${Math.abs(Number(selectedCustomer.currentBalance)).toLocaleString(
-                              'en-PK',
-                              { minimumFractionDigits: 2 },
-                            )} (Store Credit)`
-                          : 'Rs. 0.00 (Settled)'}
-                      </span>
-                    </div>
+              {/* Customer Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                  Customer / Drawer <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={pdcCustomerId}
+                  onChange={(e) => setPdcCustomerId(e.target.value)}
+                  className="w-full text-xs h-9 rounded-md border border-surface-border bg-white px-3 py-1 text-charcoal-900 focus:ring-1 focus:ring-indigo-500"
+                  required
+                >
+                  <option value="">Select customer...</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.code}) {c.city ? `— ${c.city}` : ''} [Balance: Rs. {Number(c.currentBalance).toFixed(2)}]
+                    </option>
+                  ))}
+                </select>
+                {pdcCustomerObj && (
+                  <div className="mt-1 flex items-center gap-4 text-[11px] text-charcoal-500">
+                    <span>Outstanding Receivable: <strong className="text-charcoal-900 font-mono">Rs. {Number(pdcCustomerObj.currentBalance).toFixed(2)}</strong></span>
+                    {pdcCustomerObj.phone && <span>Phone: {pdcCustomerObj.phone}</span>}
                   </div>
                 )}
+              </div>
 
-                {/* 2. Payment Tender Details */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-lg bg-surface-muted/30 border border-surface-border">
-                  <div>
-                    <label className="block text-xs font-semibold text-charcoal-800 mb-1.5">
-                      Payment Method <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                      className="w-full text-xs rounded-md border border-charcoal-300 bg-white px-3 py-2 text-charcoal-900 font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
-                    >
-                      <option value="CASH">Cash Drawer</option>
-                      <option value="BANK_TRANSFER">Bank Transfer / IBFT</option>
-                      <option value="CHEQUE">Bank Cheque</option>
-                      <option value="ONLINE">Online Portal</option>
-                      <option value="CREDIT_CARD">Credit / Debit Card</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-charcoal-800 mb-1.5">
-                      Amount Received (PKR) <span className="text-rose-500">*</span>
-                    </label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      placeholder="0.00"
-                      value={amountReceived}
-                      onChange={(e) => setAmountReceived(e.target.value)}
-                      required
-                      className="text-xs font-bold text-charcoal-900"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-charcoal-800 mb-1.5">
-                      Reference / Cheque #
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="e.g. CHQ-99081 / TXN-4412"
-                      value={referenceNumber}
-                      onChange={(e) => setReferenceNumber(e.target.value)}
-                      className="text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-charcoal-800 mb-1.5">
-                      Bank Name / Clearing Date
-                    </label>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <Input
-                        type="text"
-                        placeholder="Bank"
-                        value={bankName}
-                        onChange={(e) => setBankName(e.target.value)}
-                        className="text-xs"
-                      />
-                      <Input
-                        type="date"
-                        value={chequeDate}
-                        onChange={(e) => setChequeDate(e.target.value)}
-                        className="text-xs"
-                      />
-                    </div>
-                  </div>
+              {/* Cheque Banking Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Cheque Number <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. CHQ-998811"
+                    value={pdcChequeNumber}
+                    onChange={(e) => setPdcChequeNumber(e.target.value)}
+                    className="text-xs font-mono"
+                    required
+                  />
                 </div>
 
-                {/* 3. Invoice Allocation Breakdown Desk */}
-                <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-charcoal-800">
-                        Invoice Settlement Allocation
-                      </h3>
-                      <p className="text-[11px] text-charcoal-500">
-                        Allocate against specific outstanding invoices or leave as unallocated customer advance credit
-                      </p>
-                    </div>
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Drawee Bank Name <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Meezan Bank, HBL, MCB"
+                    value={pdcBankName}
+                    onChange={(e) => setPdcBankName(e.target.value)}
+                    className="text-xs"
+                    required
+                  />
+                </div>
+              </div>
 
-                    {unpaidInvoices.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleAutoDistribute}
-                          className="text-[11px] py-1 px-2.5 bg-brand-50 border-brand-200 text-brand-700 font-semibold hover:bg-brand-100"
-                        >
-                          <Sparkles className="w-3.5 h-3.5 mr-1" />
-                          Auto-Distribute (FIFO)
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleClearAllocations}
-                          className="text-[11px] py-1 px-2 text-charcoal-500 hover:text-charcoal-800"
-                        >
-                          Clear
-                        </Button>
-                      </div>
-                    )}
+              {/* Dates and Face Value */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Cheque Maturity Date <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="date"
+                    value={pdcChequeDate}
+                    onChange={(e) => setPdcChequeDate(e.target.value)}
+                    className="text-xs font-semibold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Received in Custody Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={pdcReceivedDate}
+                    onChange={(e) => setPdcReceivedDate(e.target.value)}
+                    className="text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Cheque Amount (Rs.) <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    placeholder="0.00"
+                    value={pdcAmount}
+                    onChange={(e) => setPdcAmount(e.target.value)}
+                    className="text-xs font-mono font-bold text-indigo-900"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Pre-allocations Table against Unpaid Invoices */}
+              {pdcCustomerId && (
+                <div className="border border-surface-border rounded-lg p-3 bg-surface-muted/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-charcoal-900">
+                      Pre-allocate Settlement Intent (Optional)
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePdcAutoDistribute}
+                        className="h-6 px-2 text-[10px]"
+                      >
+                        FIFO Auto-Distribute
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPdcAllocations({})}
+                        className="h-6 px-2 text-[10px] text-charcoal-500"
+                      >
+                        Clear
+                      </Button>
+                    </div>
                   </div>
 
                   {loadingInvoices ? (
-                    <div className="py-8 text-center text-charcoal-400 border rounded-lg border-dashed">
-                      <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-1 text-brand-500" />
-                      <span className="text-xs">Loading customer invoices...</span>
-                    </div>
+                    <div className="py-4 text-center text-xs text-charcoal-500">Loading unpaid invoices...</div>
                   ) : unpaidInvoices.length === 0 ? (
-                    <div className="p-4 rounded-lg bg-surface-muted/40 border border-surface-border text-center text-charcoal-500 text-xs">
-                      <Info className="w-4 h-4 mx-auto mb-1 text-charcoal-400" />
-                      {selectedCustomerId ? (
-                        <span>
-                          Customer has no outstanding unpaid invoices. Total payment of{' '}
-                          <strong>Rs. {enteredAmount.toFixed(2)}</strong> will be credited as an{' '}
-                          <strong>Unallocated Advance Deposit</strong>.
-                        </span>
-                      ) : (
-                        <span>Please select a customer to view open invoices</span>
-                      )}
+                    <div className="py-2 text-center text-xs text-charcoal-500 italic">
+                      No unpaid invoices. Cheque will be treated as 100% advance credit upon clearance.
                     </div>
                   ) : (
-                    <div className="border border-surface-border rounded-lg overflow-hidden">
-                      <table className="w-full text-left text-xs text-charcoal-700">
-                        <thead className="bg-surface-muted text-charcoal-600 font-semibold uppercase tracking-wider text-[10px]">
-                          <tr>
-                            <th className="py-2 px-3">Invoice #</th>
-                            <th className="py-2 px-3">Date</th>
-                            <th className="py-2 px-3 text-right">Net Total</th>
-                            <th className="py-2 px-3 text-right">Paid</th>
-                            <th className="py-2 px-3 text-right">Balance Due</th>
-                            <th className="py-2 px-3 text-right w-36">Allocate (PKR)</th>
+                    <div className="max-h-40 overflow-y-auto">
+                      <table className="w-full text-left text-[11px]">
+                        <thead>
+                          <tr className="border-b text-charcoal-500">
+                            <th className="py-1">Invoice</th>
+                            <th className="py-1 text-right">Outstanding</th>
+                            <th className="py-1 text-right">Pre-allocated Amount</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-surface-border">
-                          {unpaidInvoices.map((inv) => {
-                            const bal = Number(inv.balanceAmount);
-                            const currentAlloc = allocations[inv.id] || '';
-                            return (
-                              <tr key={inv.id} className="hover:bg-surface-muted/30">
-                                <td className="py-2.5 px-3 font-mono font-medium text-charcoal-900">
-                                  {inv.invoiceNumber}
-                                </td>
-                                <td className="py-2.5 px-3 text-charcoal-500">
-                                  {new Date(inv.invoiceDate).toLocaleDateString()}
-                                </td>
-                                <td className="py-2.5 px-3 text-right font-medium">
-                                  Rs. {Number(inv.netTotal).toFixed(2)}
-                                </td>
-                                <td className="py-2.5 px-3 text-right text-charcoal-500">
-                                  Rs. {Number(inv.paidAmount).toFixed(2)}
-                                </td>
-                                <td className="py-2.5 px-3 text-right font-bold text-rose-700">
-                                  Rs. {bal.toFixed(2)}
-                                </td>
-                                <td className="py-2.5 px-3 text-right">
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    max={bal}
-                                    placeholder="0.00"
-                                    value={currentAlloc}
-                                    onChange={(e) =>
-                                      handleAllocationChange(inv.id, e.target.value, bal)
-                                    }
-                                    className="w-full text-right text-xs py-1 px-2 border rounded border-charcoal-300 font-bold text-charcoal-900 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                                  />
-                                </td>
-                              </tr>
-                            );
-                          })}
+                          {unpaidInvoices.map((inv) => (
+                            <tr key={inv.id}>
+                              <td className="py-1 font-mono font-medium">
+                                {inv.invoiceNumber}
+                                <span className="text-[10px] text-charcoal-400 block font-sans">
+                                  {new Date(inv.invoiceDate).toLocaleDateString('en-GB')}
+                                </span>
+                              </td>
+                              <td className="py-1 text-right font-mono text-charcoal-700">
+                                Rs. {Number(inv.balanceAmount).toFixed(2)}
+                              </td>
+                              <td className="py-1 text-right">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  max={Number(inv.balanceAmount)}
+                                  placeholder="0.00"
+                                  value={pdcAllocations[inv.id] || ''}
+                                  onChange={(e) =>
+                                    handlePdcAllocationChange(inv.id, e.target.value, Number(inv.balanceAmount))
+                                  }
+                                  className="text-[11px] h-7 w-28 text-right font-mono inline-block ml-auto"
+                                />
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
                   )}
 
-                  {/* Live Allocation Breakdown Tally */}
-                  <div className="p-3.5 rounded-lg bg-surface-card border border-surface-border grid grid-cols-3 gap-2 text-center text-xs">
-                    <div>
-                      <span className="text-[10px] uppercase font-semibold text-charcoal-400 block">
-                        Received Amount
-                      </span>
-                      <span className="text-sm font-bold text-charcoal-900">
-                        Rs. {enteredAmount.toFixed(2)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-semibold text-emerald-600 block">
-                        Applied to Invoices
-                      </span>
-                      <span
-                        className={`text-sm font-bold ${
-                          isOverAllocated ? 'text-rose-600' : 'text-emerald-700'
-                        }`}
-                      >
-                        Rs. {roundedAllocated.toFixed(2)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-semibold text-amber-600 block">
-                        Unallocated Advance
-                      </span>
-                      <span className="text-sm font-bold text-amber-700">
-                        Rs. {unallocatedRemainder.toFixed(2)}
-                      </span>
-                    </div>
+                  {/* Allocation Totals in PDC modal */}
+                  <div className="pt-2 border-t flex justify-between text-xs font-semibold">
+                    <span>Pre-allocated: Rs. {roundedPdcAllocated.toFixed(2)}</span>
+                    <span className={unallocatedPdcRemainder > 0 ? 'text-amber-700' : 'text-emerald-700'}>
+                      Unallocated Advance: Rs. {unallocatedPdcRemainder.toFixed(2)}
+                    </span>
                   </div>
-
-                  {isOverAllocated && (
-                    <div className="p-2.5 rounded bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>
-                        Total allocated (Rs. {roundedAllocated.toFixed(2)}) exceeds received amount (Rs.{' '}
-                        {enteredAmount.toFixed(2)})!
-                      </span>
-                    </div>
-                  )}
                 </div>
+              )}
 
-                {/* Notes */}
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-800 mb-1.5">
-                    Internal Notes / Memo
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="Optional remarks regarding this payment receipt"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="text-xs"
-                  />
-                </div>
+              {/* Custody Notes */}
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                  Custody Notes / Remarks
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Handed over by representative Mr. Tariq for September orders"
+                  value={pdcNotes}
+                  onChange={(e) => setPdcNotes(e.target.value)}
+                  className="text-xs"
+                />
               </div>
 
-              {/* Modal Footer */}
-              <div className="px-6 py-4 border-t border-surface-border bg-surface-muted/40 flex items-center justify-end gap-2.5">
+              {/* Submit / Cancel Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  disabled={isSubmitting}
-                  className="text-xs"
+                  onClick={() => setIsCreatePdcModalOpen(false)}
+                  disabled={isSubmittingPdc}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   size="sm"
-                  disabled={isSubmitting || isOverAllocated || enteredAmount <= 0}
-                  className="text-xs bg-brand-600 hover:bg-brand-700 text-white font-semibold"
+                  disabled={isSubmittingPdc || isPdcOverAllocated}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                      Posting Receipt...
-                    </>
-                  ) : (
-                    'Post Payment Receipt'
-                  )}
+                  {isSubmittingPdc ? 'Registering...' : 'Register PDC in Custody'}
                 </Button>
               </div>
             </form>
@@ -1126,26 +1827,796 @@ export const CustomerPaymentsPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* VOUCHER / PRINT PREVIEW MODAL */}
+      {/* MODAL: DEPOSIT PDC IN BANK */}
+      {/* ========================================================================= */}
+      {depositingPdc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl border border-surface-border overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 text-amber-600 mb-3">
+                <div className="p-2 rounded-lg bg-amber-50 border border-amber-100">
+                  <Landmark className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-charcoal-900">Record Bank Deposit</h3>
+                  <p className="text-xs text-charcoal-500">PDC #{depositingPdc.pdcNumber}</p>
+                </div>
+              </div>
+
+              <div className="bg-surface-muted p-3 rounded-lg text-xs space-y-1 mb-4">
+                <div className="flex justify-between">
+                  <span className="text-charcoal-500">Cheque #:</span>
+                  <span className="font-mono font-bold text-charcoal-900">{depositingPdc.chequeNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-charcoal-500">Drawee Bank:</span>
+                  <span className="font-medium text-charcoal-900">{depositingPdc.bankName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-charcoal-500">Amount:</span>
+                  <span className="font-mono font-bold text-indigo-900">Rs. {Number(depositingPdc.amount).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-3 mb-4">
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Deposit Bank Name <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Meezan Bank Main Branch"
+                    value={depositBankName}
+                    onChange={(e) => setDepositBankName(e.target.value)}
+                    className="text-xs"
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Deposit Slip / Reference #
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. SLIP-100293"
+                    value={depositReference}
+                    onChange={(e) => setDepositReference(e.target.value)}
+                    className="text-xs font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Deposited At Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={depositedAtDate}
+                    onChange={(e) => setDepositedAtDate(e.target.value)}
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDepositingPdc(null)}
+                  disabled={isDepositing}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleConfirmDeposit}
+                  disabled={isDepositing || !depositBankName.trim()}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs"
+                >
+                  {isDepositing ? 'Recording...' : 'Mark as Deposited'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CLEAR PDC (FINANCIAL SETTLEMENT) */}
+      {/* ========================================================================= */}
+      {clearingPdc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl border border-surface-border overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 text-emerald-600 mb-3">
+                <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-100">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-charcoal-900">Execute Bank Clearance</h3>
+                  <p className="text-xs text-charcoal-500">PDC #{clearingPdc.pdcNumber} (Maturity: {new Date(clearingPdc.chequeDate).toLocaleDateString('en-GB')})</p>
+                </div>
+              </div>
+
+              <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3 text-xs text-emerald-950 rounded mb-4 space-y-1">
+                <div className="font-bold">Authoritative Financial Action:</div>
+                <p>
+                  Executing clearance will transactionally generate a <strong>Customer Payment Receipt</strong>, credit the customer sub-ledger by <strong>Rs. {Number(clearingPdc.amount).toFixed(2)}</strong>, revalidate and settle invoice balances, and decrease the customer's outstanding balance.
+                </p>
+              </div>
+
+              <div className="space-y-3 mb-4">
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Clearance Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={clearedAtDate}
+                    onChange={(e) => setClearedAtDate(e.target.value)}
+                    className="text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Clearance Notes
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Bank credit advice confirmed"
+                    value={clearingNotes}
+                    onChange={(e) => setClearingNotes(e.target.value)}
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setClearingPdc(null)}
+                  disabled={isClearing}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleConfirmClear}
+                  disabled={isClearing}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs"
+                >
+                  {isClearing ? 'Processing Clearance...' : 'Confirm Clearance & Post Settlement'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: BOUNCE PDC */}
+      {/* ========================================================================= */}
+      {bouncingPdc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl border border-surface-border overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 text-rose-600 mb-3">
+                <div className="p-2 rounded-lg bg-rose-50 border border-rose-100">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-charcoal-900">Mark Cheque as Bounced</h3>
+                  <p className="text-xs text-charcoal-500">PDC #{bouncingPdc.pdcNumber} ({bouncingPdc.chequeNumber})</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 mb-4">
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Dishonor / Bounce Reason <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Insufficient funds, signature mismatch, account closed"
+                    value={bounceReason}
+                    onChange={(e) => setBounceReason(e.target.value)}
+                    className="text-xs"
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Bounced At Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={bouncedAtDate}
+                    onChange={(e) => setBouncedAtDate(e.target.value)}
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBouncingPdc(null)}
+                  disabled={isBouncing}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleConfirmBounce}
+                  disabled={isBouncing || !bounceReason.trim()}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs"
+                >
+                  {isBouncing ? 'Recording...' : 'Confirm Bounce'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CANCEL / RETURN PDC */}
+      {/* ========================================================================= */}
+      {cancellingPdc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl border border-surface-border overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 text-gray-700 mb-3">
+                <div className="p-2 rounded-lg bg-gray-100 border border-gray-200">
+                  <Ban className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-charcoal-900">Cancel & Return PDC</h3>
+                  <p className="text-xs text-charcoal-500">PDC #{cancellingPdc.pdcNumber}</p>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                  Cancellation / Return Reason <span className="text-rose-500">*</span>
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Cheque returned upon cash settlement"
+                  value={pdcCancellationReason}
+                  onChange={(e) => setPdcCancellationReason(e.target.value)}
+                  className="text-xs"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCancellingPdc(null)}
+                  disabled={isCancellingPdc}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleConfirmCancelPdc}
+                  disabled={isCancellingPdc || !pdcCancellationReason.trim()}
+                  className="bg-gray-800 hover:bg-gray-900 text-white font-semibold text-xs"
+                >
+                  {isCancellingPdc ? 'Cancelling...' : 'Confirm Return'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: VIEW PDC DETAILS DRAWER */}
+      {/* ========================================================================= */}
+      {viewingPdc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl border border-surface-border overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 bg-charcoal-900 text-white flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold">PDC Details & Lifecycle Timeline</h2>
+                <p className="text-[11px] text-charcoal-300">
+                  {viewingPdc.pdcNumber} — Cheque #{viewingPdc.chequeNumber}
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingPdc(null)}
+                className="text-charcoal-400 hover:text-white p-1 rounded-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4 flex-1 text-xs">
+              <div className="grid grid-cols-2 gap-4 bg-surface-muted p-4 rounded-lg">
+                <div>
+                  <span className="text-charcoal-500 block">Customer:</span>
+                  <strong className="text-charcoal-900 text-sm">{viewingPdc.customer?.name}</strong>
+                  <div className="text-charcoal-500">{viewingPdc.customer?.code}</div>
+                </div>
+                <div className="text-right">
+                  <span className="text-charcoal-500 block">Cheque Face Value:</span>
+                  <strong className="text-indigo-900 text-base font-mono">
+                    Rs. {Number(viewingPdc.amount).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Lifecycle Events */}
+              <div className="border border-surface-border rounded-lg p-4 space-y-3">
+                <h4 className="font-bold text-charcoal-900 uppercase tracking-wider text-[11px]">
+                  Lifecycle Milestones
+                </h4>
+
+                <div className="space-y-2 text-[11px]">
+                  <div className="flex items-center justify-between py-1 border-b">
+                    <span className="flex items-center gap-2">
+                      <Check className="w-3.5 h-3.5 text-blue-600" />
+                      <strong>Received in Custody</strong>
+                    </span>
+                    <span className="text-charcoal-500 font-mono">
+                      {new Date(viewingPdc.receivedDate).toLocaleDateString('en-GB')}
+                    </span>
+                  </div>
+
+                  {viewingPdc.depositedAt && (
+                    <div className="flex items-center justify-between py-1 border-b">
+                      <span className="flex items-center gap-2">
+                        <Check className="w-3.5 h-3.5 text-amber-600" />
+                        <strong>Deposited in {viewingPdc.depositBankName}</strong>
+                        {viewingPdc.depositReference && (
+                          <span className="text-charcoal-500 font-mono">({viewingPdc.depositReference})</span>
+                        )}
+                      </span>
+                      <span className="text-charcoal-500 font-mono">
+                        {new Date(viewingPdc.depositedAt).toLocaleDateString('en-GB')}
+                      </span>
+                    </div>
+                  )}
+
+                  {viewingPdc.clearedAt && (
+                    <div className="flex items-center justify-between py-1 border-b text-emerald-800">
+                      <span className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <strong>Cleared & Settled</strong>
+                        {viewingPdc.customerPayment && (
+                          <span className="font-mono font-bold">[{viewingPdc.customerPayment.paymentNumber}]</span>
+                        )}
+                      </span>
+                      <span className="font-mono">
+                        {new Date(viewingPdc.clearedAt).toLocaleDateString('en-GB')}
+                      </span>
+                    </div>
+                  )}
+
+                  {viewingPdc.bouncedAt && (
+                    <div className="flex items-center justify-between py-1 border-b text-rose-800">
+                      <span className="flex items-center gap-2">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                        <strong>Bounced ({viewingPdc.bounceReason})</strong>
+                      </span>
+                      <span className="font-mono">
+                        {new Date(viewingPdc.bouncedAt).toLocaleDateString('en-GB')}
+                      </span>
+                    </div>
+                  )}
+
+                  {viewingPdc.cancelledAt && (
+                    <div className="flex items-center justify-between py-1 border-b text-gray-700">
+                      <span className="flex items-center gap-2">
+                        <Ban className="w-3.5 h-3.5 text-gray-500" />
+                        <strong>Cancelled & Returned ({viewingPdc.cancellationReason})</strong>
+                      </span>
+                      <span className="font-mono">
+                        {new Date(viewingPdc.cancelledAt).toLocaleDateString('en-GB')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Pre-allocations list */}
+              {viewingPdc.allocations && viewingPdc.allocations.length > 0 && (
+                <div className="border border-surface-border rounded-lg p-3">
+                  <h4 className="font-bold text-charcoal-900 mb-2">Pre-allocated Invoices</h4>
+                  <div className="space-y-1">
+                    {viewingPdc.allocations.map((a, i) => (
+                      <div key={i} className="flex justify-between text-[11px] py-0.5 border-b">
+                        <span className="font-mono">{a.salesInvoice?.invoiceNumber || a.salesInvoiceId}</span>
+                        <span className="font-mono font-bold">Rs. {Number(a.amountAllocated).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-3 bg-surface-muted border-t flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewingPdc(null)}
+              >
+                Close
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setPrintingPdc(viewingPdc);
+                  setViewingPdc(null);
+                }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                <Printer className="w-3.5 h-3.5 mr-1" />
+                <span>Print Receipt</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: RECORD REGULAR PAYMENT RECEIPT */}
+      {/* ========================================================================= */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl border border-surface-border overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 bg-brand-900 text-white flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold">Record Customer Payment Receipt</h2>
+                <p className="text-[11px] text-brand-200">
+                  Immediate settlement voucher & customer credit recording
+                </p>
+              </div>
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                className="text-brand-200 hover:text-white p-1 rounded-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitPayment} className="p-6 overflow-y-auto space-y-4 flex-1">
+              {/* Customer Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                  Customer <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={selectedCustomerId}
+                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  className="w-full text-xs h-9 rounded-md border border-surface-border bg-white px-3 py-1 text-charcoal-900 focus:ring-1 focus:ring-brand-500"
+                  required
+                >
+                  <option value="">Select customer...</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.code}) {c.city ? `— ${c.city}` : ''} [Balance: Rs. {Number(c.currentBalance).toFixed(2)}]
+                    </option>
+                  ))}
+                </select>
+                {selectedCustomer && (
+                  <div className="mt-1 flex items-center gap-4 text-[11px] text-charcoal-500">
+                    <span>Current Balance: <strong className="text-charcoal-900 font-mono">Rs. {Number(selectedCustomer.currentBalance).toFixed(2)}</strong></span>
+                    {selectedCustomer.phone && <span>Phone: {selectedCustomer.phone}</span>}
+                  </div>
+                )}
+              </div>
+
+              {/* Payment Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Payment Date <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="text-xs"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Payment Method <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                    className="w-full text-xs h-9 rounded-md border border-surface-border bg-white px-3 py-1 text-charcoal-900 focus:ring-1 focus:ring-brand-500"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                    <option value="CHEQUE">Spot Cheque</option>
+                    <option value="ONLINE">Online Portal</option>
+                    <option value="CREDIT_CARD">Credit / Debit Card</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                    Amount Received (Rs.) <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    placeholder="0.00"
+                    value={amountReceived}
+                    onChange={(e) => setAmountReceived(e.target.value)}
+                    className="text-xs font-mono font-bold text-charcoal-900"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Reference Number & Bank Name */}
+              {(paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'CHEQUE' || paymentMethod === 'CREDIT_CARD') && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                      {paymentMethod === 'CHEQUE' ? 'Cheque #' : 'Transaction / Reference #'}
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. TXN-102948 / Cheque 9948"
+                      value={referenceNumber}
+                      onChange={(e) => setReferenceNumber(e.target.value)}
+                      className="text-xs font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                      Bank Name
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. Meezan Bank, HBL"
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      className="text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Unpaid Invoices Allocation Table */}
+              {selectedCustomerId && (
+                <div className="border border-surface-border rounded-lg p-3 bg-surface-muted/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-charcoal-900">
+                      Settle Against Unpaid Invoices
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAutoDistribute}
+                        className="h-6 px-2 text-[10px]"
+                      >
+                        FIFO Auto-Distribute
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleClearAllocations}
+                        className="h-6 px-2 text-[10px] text-charcoal-500"
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+
+                  {loadingInvoices ? (
+                    <div className="py-4 text-center text-xs text-charcoal-500">Loading unpaid invoices...</div>
+                  ) : unpaidInvoices.length === 0 ? (
+                    <div className="py-2 text-center text-xs text-charcoal-500 italic">
+                      No unpaid invoices. Full amount will be recorded as unallocated customer advance.
+                    </div>
+                  ) : (
+                    <div className="max-h-40 overflow-y-auto">
+                      <table className="w-full text-left text-[11px]">
+                        <thead>
+                          <tr className="border-b text-charcoal-500">
+                            <th className="py-1">Invoice</th>
+                            <th className="py-1 text-right">Outstanding</th>
+                            <th className="py-1 text-right">Allocate (Rs.)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-surface-border">
+                          {unpaidInvoices.map((inv) => (
+                            <tr key={inv.id}>
+                              <td className="py-1 font-mono font-medium">
+                                {inv.invoiceNumber}
+                                <span className="text-[10px] text-charcoal-400 block font-sans">
+                                  {new Date(inv.invoiceDate).toLocaleDateString('en-GB')}
+                                </span>
+                              </td>
+                              <td className="py-1 text-right font-mono text-charcoal-700">
+                                Rs. {Number(inv.balanceAmount).toFixed(2)}
+                              </td>
+                              <td className="py-1 text-right">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  max={Number(inv.balanceAmount)}
+                                  placeholder="0.00"
+                                  value={allocations[inv.id] || ''}
+                                  onChange={(e) =>
+                                    handleAllocationChange(inv.id, e.target.value, Number(inv.balanceAmount))
+                                  }
+                                  className="text-[11px] h-7 w-28 text-right font-mono inline-block ml-auto"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Summary Footer */}
+                  <div className="pt-2 border-t flex justify-between text-xs font-semibold">
+                    <span>Allocated: Rs. {roundedAllocated.toFixed(2)}</span>
+                    <span className={unallocatedRemainder > 0 ? 'text-amber-700' : 'text-emerald-700'}>
+                      Unallocated Advance: Rs. {unallocatedRemainder.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-800 mb-1">
+                  Payment Notes
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Cleared full month dues"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="text-xs"
+                />
+              </div>
+
+              {/* Form Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isSubmitting || isOverAllocated}
+                  className="bg-brand-600 hover:bg-brand-700 text-white font-semibold"
+                >
+                  {isSubmitting ? 'Posting...' : 'Post Payment Receipt'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: PRINT CUSTODIAL PDC RECEIPT */}
+      {/* ========================================================================= */}
+      {printingPdc && (
+        <DocumentPrintModal
+          isOpen={!!printingPdc}
+          onClose={() => setPrintingPdc(null)}
+          title={`Post-Dated Cheque Receipt — ${printingPdc.pdcNumber}`}
+        >
+          {(layout) => {
+            const printablePdc: PrintablePdcReceipt = {
+              company,
+              branch: printingPdc.branch ? {
+                name: printingPdc.branch.name,
+                code: printingPdc.branch.code,
+                address: printingPdc.branch.address || null,
+                phone: printingPdc.branch.phone || null,
+              } : null,
+              pdcNumber: printingPdc.pdcNumber,
+              chequeNumber: printingPdc.chequeNumber,
+              bankName: printingPdc.bankName,
+              chequeDate: printingPdc.chequeDate,
+              receivedDate: printingPdc.receivedDate,
+              amount: Number(printingPdc.amount || 0),
+              allocatedAmount: Number(printingPdc.allocatedAmount || 0),
+              unallocatedAmount: Number(printingPdc.unallocatedAmount || 0),
+              status: printingPdc.status,
+              notes: printingPdc.notes || null,
+              depositBankName: printingPdc.depositBankName || null,
+              depositReference: printingPdc.depositReference || null,
+              depositedAt: printingPdc.depositedAt || null,
+              clearedAt: printingPdc.clearedAt || null,
+              bouncedAt: printingPdc.bouncedAt || null,
+              bounceReason: printingPdc.bounceReason || null,
+              cancelledAt: printingPdc.cancelledAt || null,
+              cancellationReason: printingPdc.cancellationReason || null,
+              customer: {
+                name: printingPdc.customer?.name || 'Customer',
+                code: printingPdc.customer?.code || null,
+                phone: printingPdc.customer?.phone || null,
+                address: printingPdc.customer?.address || null,
+                city: printingPdc.customer?.city || null,
+                currentBalance: Number(printingPdc.customer?.currentBalance || 0),
+              },
+              receivedBy: printingPdc.createdByUser?.displayName || 'Authorized Custody Officer',
+              linkedPaymentNumber: printingPdc.customerPayment?.paymentNumber || null,
+              allocations: (printingPdc.allocations || []).map((a) => ({
+                invoiceNumber: a.salesInvoice?.invoiceNumber || a.salesInvoiceId,
+                invoiceDate: a.salesInvoice?.invoiceDate,
+                netTotal: Number(a.salesInvoice?.netTotal || 0),
+                amountAllocated: Number(a.amountAllocated || 0),
+              })),
+            };
+
+            return (
+              <PdcReceiptTemplate
+                pdcReceipt={printablePdc}
+                company={company}
+                layout={layout}
+              />
+            );
+          }}
+        </DocumentPrintModal>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: PRINT REGULAR CUSTOMER PAYMENT RECEIPT */}
       {/* ========================================================================= */}
       {viewingPayment && (
         <DocumentPrintModal
-          isOpen={true}
+          isOpen={!!viewingPayment}
           onClose={() => setViewingPayment(null)}
-          title={`Payment Receipt Voucher — ${viewingPayment.paymentNumber}`}
-          subtitle={`Customer: ${viewingPayment.customer?.name || 'Customer'} • Date: ${new Date(viewingPayment.paymentDate).toLocaleDateString('en-GB')}`}
-          defaultLayout="A4"
-          allowThermalToggle={true}
+          title={`Payment Receipt — ${viewingPayment.paymentNumber}`}
         >
           {(layout) => {
             const printableData: PrintableCustomerPayment = {
               voucherNumber: viewingPayment.paymentNumber,
               paymentDate: new Date(viewingPayment.paymentDate).toLocaleDateString('en-GB'),
-              paymentMethod: viewingPayment.paymentMethod.replace('_', ' '),
+              paymentMethod: viewingPayment.paymentMethod,
               referenceNumber: viewingPayment.referenceNumber || null,
+              chequeNumber: viewingPayment.paymentMethod === 'CHEQUE' ? viewingPayment.referenceNumber || null : null,
               bankName: viewingPayment.bankName || null,
               customer: {
-                name: viewingPayment.customer?.name || 'Walk-in Customer',
+                name: viewingPayment.customer?.name || 'Customer',
                 code: viewingPayment.customer?.code || null,
                 address: viewingPayment.customer?.address || null,
                 city: viewingPayment.customer?.city || null,
@@ -1178,7 +2649,7 @@ export const CustomerPaymentsPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* CANCELLATION / VOID MODAL */}
+      {/* MODAL: VOID REGULAR PAYMENT */}
       {/* ========================================================================= */}
       {cancellingPayment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/70 backdrop-blur-xs animate-in fade-in duration-200">
@@ -1231,7 +2702,7 @@ export const CustomerPaymentsPage: React.FC = () => {
                 <Button
                   type="button"
                   size="sm"
-                  onClick={handleConfirmCancel}
+                  onClick={handleConfirmCancelPayment}
                   disabled={isCancelling || !cancellationReason.trim()}
                   className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-semibold"
                 >

@@ -28,4 +28,5 @@ export * from './imports.api';
 export * from './onboarding.api';
 export * from './sales-operations.api';
 export * from './delivery-orders.api';
+export * from './pdc.api';
 

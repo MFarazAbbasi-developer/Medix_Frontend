@@ -262,3 +262,41 @@ export interface PrintableDeliveryChallan {
     totalLinesCount: number;
   };
 }
+
+export interface PrintablePdcReceipt {
+  company: PrintableCompanyInfo;
+  branch?: {
+    name?: string | null;
+    code?: string | null;
+    address?: string | null;
+    phone?: string | null;
+  } | null;
+  pdcNumber: string;
+  chequeNumber: string;
+  bankName: string;
+  chequeDate: string;
+  receivedDate: string;
+  amount: number;
+  allocatedAmount: number;
+  unallocatedAmount: number;
+  status: string;
+  notes?: string | null;
+  depositBankName?: string | null;
+  depositReference?: string | null;
+  depositedAt?: string | null;
+  clearedAt?: string | null;
+  bouncedAt?: string | null;
+  bounceReason?: string | null;
+  cancelledAt?: string | null;
+  cancellationReason?: string | null;
+  customer: PrintablePartyInfo & { currentBalance?: number };
+  receivedBy: string;
+  linkedPaymentNumber?: string | null;
+  allocations?: Array<{
+    invoiceNumber: string;
+    invoiceDate?: string;
+    netTotal: number;
+    amountAllocated: number;
+  }>;
+}
+
