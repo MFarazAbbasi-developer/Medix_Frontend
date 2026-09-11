@@ -9,10 +9,8 @@ export const AppLayout: React.FC = () => {
       <AppHeader />
       <div className="flex flex-1 overflow-hidden">
         <AppSidebar />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <div className="mx-auto max-w-7xl">
-            <Outlet />
-          </div>
+        <main className="flex-1 overflow-y-auto p-3 md:p-4 lg:p-5 w-full">
+          <Outlet />
         </main>
       </div>
     </div>

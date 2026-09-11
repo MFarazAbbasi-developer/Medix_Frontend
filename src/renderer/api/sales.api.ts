@@ -1,5 +1,5 @@
 import { apiClient, ApiResponse } from './client';
-import { Customer } from './customers.api';
+import { Customer, CustomerDeliveryAddress } from './customers.api';
 
 export type SalesInvoiceStatus = 'DRAFT' | 'POSTED' | 'CANCELLED';
 
@@ -82,6 +82,15 @@ export interface SalesInvoice {
   totalCostPrice: string | number;
   grossProfit: string | number;
   notes?: string | null;
+  salesmanId?: string | null;
+  routeId?: string | null;
+  deliveryAddressId?: string | null;
+  deliveryTitle?: string | null;
+  deliveryRecipient?: string | null;
+  deliveryPhone?: string | null;
+  deliveryAddress?: string | null;
+  deliveryCity?: string | null;
+  deliveryInstructions?: string | null;
   postedAt?: string | null;
   postedByUserId?: string | null;
   cancelledAt?: string | null;
@@ -92,6 +101,9 @@ export interface SalesInvoice {
   customer?: Customer;
   branch?: { id: string; name: string; code: string };
   warehouse?: { id: string; name: string; code: string };
+  salesman?: { id: string; name: string; code: string; phone?: string | null; email?: string | null } | null;
+  route?: { id: string; name: string; code: string; city?: string | null; area?: string | null } | null;
+  deliveryAddressRef?: CustomerDeliveryAddress | null;
   postedByUser?: { id: string; displayName: string; username: string };
   cancelledByUser?: { id: string; displayName: string; username: string };
   items?: SalesInvoiceItem[];
@@ -179,6 +191,9 @@ export interface CreateSalesInvoicePayload {
   payments?: SalesInvoicePaymentTenderPayload[];
   overallDiscountAmount?: number;
   notes?: string;
+  salesmanId?: string;
+  routeId?: string;
+  deliveryAddressId?: string;
   isDraft?: boolean;
 }
 
@@ -219,6 +234,8 @@ export const salesApi = {
     customerId?: string;
     branchId?: string;
     warehouseId?: string;
+    salesmanId?: string;
+    routeId?: string;
     status?: SalesInvoiceStatus;
     paymentMethod?: PaymentMethod;
     startDate?: string;

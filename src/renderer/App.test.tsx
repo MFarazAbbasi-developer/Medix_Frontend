@@ -55,9 +55,8 @@ describe('App Root', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText('System Overview & Foundation Status'),
-      ).toBeInTheDocument();
+      expect(screen.getByText('Business overview')).toBeInTheDocument();
+      expect(screen.getByText('Quick Actions')).toBeInTheDocument();
     });
   });
 });

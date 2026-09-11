@@ -1,279 +1,559 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import {
-  Database,
-  Server,
-  Monitor,
+  LayoutDashboard,
+  Receipt,
+  CreditCard,
+  Users,
+  Building2,
+  Calendar,
+  RefreshCw,
+  ShoppingBag,
+  PackageCheck,
+  ShoppingCart,
+  ArrowUpRight,
+  Layers,
+  ShieldAlert,
+  AlertTriangle,
+  Clock,
+  ArrowRight,
+  Inbox,
   AlertCircle,
-  ShieldCheck,
 } from 'lucide-react';
-import { useHealth } from '../hooks/useHealth';
-import { useAppStore } from '../store/appStore';
-import { Card } from '../components/ui/Card';
-import { StatusBadge } from '../components/ui/StatusBadge';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../components/ui/Table';
+  reportsApi,
+  salesApi,
+  settingsApi,
+  DashboardMetricsReport,
+  SalesInvoice,
+  CustomerAgingSummary,
+  SupplierAgingSummary,
+} from '../api';
+import { PageHeader } from '../components/ui/PageHeader';
+import { MetricCard } from '../components/ui/MetricCard';
+import { Button } from '../components/ui/Button';
+import { StatusBadge } from '../components/ui/StatusBadge';
+import { Card } from '../components/ui/Card';
 
 export const DashboardPage: React.FC = () => {
-  const { data: health, isLoading } = useHealth();
-  const { apiBaseUrl, backendStatus } = useAppStore();
+  const navigate = useNavigate();
 
-  const isLocalhost =
-    apiBaseUrl.includes('localhost') || apiBaseUrl.includes('127.0.0.1');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Business metrics and configuration from existing APIs
+  const [metrics, setMetrics] = useState<DashboardMetricsReport | null>(null);
+  const [recentInvoices, setRecentInvoices] = useState<SalesInvoice[]>([]);
+  const [customerAging, setCustomerAging] = useState<CustomerAgingSummary | null>(null);
+  const [supplierAging, setSupplierAging] = useState<SupplierAgingSummary | null>(null);
+  const [overLimitCount, setOverLimitCount] = useState<number>(0);
+  const [minShelfLifeDays, setMinShelfLifeDays] = useState<number>(30);
+
+  const loadDashboardData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const [metricsData, invoicesRes, customerAgingRes, supplierAgingRes, settingsRes] =
+        await Promise.allSettled([
+          reportsApi.getDashboardMetrics().catch(() => null),
+          salesApi.getInvoices({ limit: 5 }).catch(() => ({ items: [] })),
+          reportsApi.getCustomerAgingReport().catch(() => null),
+          reportsApi.getSupplierAgingReport().catch(() => null),
+          settingsApi.getSettings().catch(() => ({ items: [], map: {} })),
+        ]);
+
+      if (metricsData.status === 'fulfilled' && metricsData.value) {
+        setMetrics(metricsData.value);
+      }
+
+      if (invoicesRes.status === 'fulfilled' && invoicesRes.value) {
+        setRecentInvoices(invoicesRes.value.items || []);
+      }
+
+      if (customerAgingRes.status === 'fulfilled' && customerAgingRes.value) {
+        const val = customerAgingRes.value;
+        if ('summary' in val) {
+          setCustomerAging(val.summary);
+          const overLimit = val.data?.filter(
+            (c) => c.creditLimit > 0 && c.currentBalance > c.creditLimit,
+          ).length;
+          setOverLimitCount(overLimit || 0);
+        }
+      }
+
+      if (supplierAgingRes.status === 'fulfilled' && supplierAgingRes.value) {
+        const val = supplierAgingRes.value;
+        if ('summary' in val) {
+          setSupplierAging(val.summary);
+        }
+      }
+
+      if (settingsRes.status === 'fulfilled' && settingsRes.value?.map) {
+        const settingsMap = settingsRes.value.map as Record<string, string>;
+        const configuredDays = Number(settingsMap['MIN_REMAINING_SHELF_LIFE_DAYS']);
+        setMinShelfLifeDays(configuredDays > 0 ? configuredDays : 30);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load dashboard metrics');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  // Current formatted business date
+  const todayFormatted = new Date().toLocaleDateString('en-PK', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+
+  // Calculate past-due balances based on customer and supplier credit/payment terms
+  const pastDueReceivablesAmount = customerAging
+    ? (customerAging.grand1to30 || 0) +
+      (customerAging.grand31to60 || 0) +
+      (customerAging.grand61to90 || 0) +
+      (customerAging.grand90Plus || 0)
+    : 0;
+
+  const pastDuePayablesAmount = supplierAging
+    ? (supplierAging.grand1to30 || 0) +
+      (supplierAging.grand31to60 || 0) +
+      (supplierAging.grand61to90 || 0) +
+      (supplierAging.grand90Plus || 0)
+    : 0;
+
+  const totalExpiringCount =
+    (metrics?.inventory?.soonExpiringBatches || 0) +
+    (metrics?.inventory?.expiredBatches || 0);
 
   return (
-    <div className="space-y-5">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-border pb-3">
-        <div>
-          <h1 className="text-base font-bold text-charcoal-900 tracking-tight">
-            System Overview & Foundation Status
-          </h1>
-          <p className="text-xs text-charcoal-500 mt-0.5">
-            Operational status for local-first pharmaceutical distribution station
-          </p>
+    <div className="space-y-4">
+      {/* 1. Page Header */}
+      <PageHeader
+        title="Dashboard"
+        description="Business overview"
+        icon={LayoutDashboard}
+        actions={
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-surface-border bg-surface-card text-xs font-semibold text-charcoal-700 shadow-2xs">
+              <Calendar className="h-3.5 w-3.5 text-charcoal-500" />
+              <span>{todayFormatted}</span>
+            </span>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={loadDashboardData}
+              disabled={isLoading}
+              title="Refresh Dashboard Data"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`}
+              />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+          </div>
+        }
+      />
+
+      {error && (
+        <div className="flex items-center gap-2 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+          <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+          <span>{error}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <StatusBadge
-            variant={
-              backendStatus === 'connected'
-                ? 'success'
-                : backendStatus === 'checking'
-                  ? 'warning'
-                  : 'error'
-            }
-          >
-            {backendStatus === 'connected'
-              ? 'Station Active'
-              : backendStatus === 'checking'
-                ? 'Connecting...'
-                : 'Connection Failed'}
-          </StatusBadge>
-        </div>
+      )}
+
+      {/* 2. Four Primary Metrics */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Today's Sales */}
+        <MetricCard
+          title="Today's Sales"
+          value={
+            isLoading
+              ? 'Loading...'
+              : `PKR ${Number(metrics?.today?.salesNet || 0).toLocaleString('en-PK', {
+                  minimumFractionDigits: 2,
+                })}`
+          }
+          subtitle={
+            metrics
+              ? `${metrics.today?.invoiceCount || 0} invoices billed today`
+              : 'Direct counter & credit invoices'
+          }
+          icon={Receipt}
+          status="brand"
+        />
+
+        {/* Collections */}
+        <MetricCard
+          title="Collections"
+          value={
+            isLoading
+              ? 'Loading...'
+              : `PKR ${Number(metrics?.today?.collections || 0).toLocaleString('en-PK', {
+                  minimumFractionDigits: 2,
+                })}`
+          }
+          subtitle="Cash & bank settlements received"
+          icon={CreditCard}
+          status="success"
+        />
+
+        {/* Receivables */}
+        <MetricCard
+          title="Receivables"
+          value={
+            isLoading
+              ? 'Loading...'
+              : `PKR ${Number(metrics?.outstanding?.receivables || 0).toLocaleString('en-PK', {
+                  minimumFractionDigits: 2,
+                })}`
+          }
+          subtitle="Total outstanding customer balance"
+          icon={Users}
+          status="warning"
+        />
+
+        {/* Payables */}
+        <MetricCard
+          title="Payables"
+          value={
+            isLoading
+              ? 'Loading...'
+              : `PKR ${Number(metrics?.outstanding?.payables || 0).toLocaleString('en-PK', {
+                  minimumFractionDigits: 2,
+                })}`
+          }
+          subtitle="Outstanding vendor liabilities"
+          icon={Building2}
+          status="info"
+        />
       </div>
 
-      {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* Backend REST API */}
-        <Card className="p-3.5">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold text-charcoal-500 uppercase tracking-wider">
-                NestJS REST API
-              </p>
-              <p className="text-sm font-bold text-charcoal-900">
-                {isLoading
-                  ? 'Checking...'
-                  : health?.status === 'ok'
-                    ? 'Operational (v1)'
-                    : 'Unreachable'}
-              </p>
-            </div>
-            <div
-              className={`p-2 rounded ${
-                health?.status === 'ok'
-                  ? 'bg-emerald-50 text-emerald-600'
-                  : 'bg-red-50 text-red-600'
-              }`}
-            >
-              <Server className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-2.5 pt-2 border-t border-surface-border flex items-center justify-between text-[11px] text-charcoal-500">
-            <span>Route</span>
-            <span className="font-mono text-charcoal-700">/api/v1/health</span>
-          </div>
-        </Card>
-
-        {/* PostgreSQL Database */}
-        <Card className="p-3.5">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold text-charcoal-500 uppercase tracking-wider">
-                PostgreSQL Database
-              </p>
-              <p className="text-sm font-bold text-charcoal-900">
-                {isLoading
-                  ? 'Checking...'
-                  : health?.database.status === 'connected'
-                    ? 'Connected (Prisma)'
-                    : 'Disconnected'}
-              </p>
-            </div>
-            <div
-              className={`p-2 rounded ${
-                health?.database.status === 'connected'
-                  ? 'bg-emerald-50 text-emerald-600'
-                  : 'bg-amber-50 text-amber-600'
-              }`}
-            >
-              <Database className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-2.5 pt-2 border-t border-surface-border flex items-center justify-between text-[11px] text-charcoal-500">
-            <span>Provider</span>
-            <span className="font-mono text-charcoal-700">Prisma ORM</span>
-          </div>
-        </Card>
-
-        {/* Deployment Mode */}
-        <Card className="p-3.5">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold text-charcoal-500 uppercase tracking-wider">
-                Deployment Mode
-              </p>
-              <p className="text-sm font-bold text-charcoal-900">
-                {isLocalhost ? 'Single-PC / Server' : 'Multi-PC / LAN Client'}
-              </p>
-            </div>
-            <div className="p-2 rounded bg-blue-50 text-blue-600">
-              <Monitor className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-2.5 pt-2 border-t border-surface-border flex items-center justify-between text-[11px] text-charcoal-500">
-            <span>Host Mode</span>
-            <span className="font-mono text-charcoal-700">
-              {isLocalhost ? 'Localhost' : 'Remote LAN'}
+      {/* 3. Quick Actions */}
+      <Card className="p-3 bg-surface-card border border-surface-border">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-400">
+              Quick Actions
             </span>
           </div>
-        </Card>
 
-        {/* Security & IPC */}
-        <Card className="p-3.5">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold text-charcoal-500 uppercase tracking-wider">
-                Electron Sandbox
-              </p>
-              <p className="text-sm font-bold text-charcoal-900">
-                Isolated Context
-              </p>
-            </div>
-            <div className="p-2 rounded bg-emerald-50 text-emerald-600">
-              <ShieldCheck className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-2.5 pt-2 border-t border-surface-border flex items-center justify-between text-[11px] text-charcoal-500">
-            <span>Node Integration</span>
-            <span className="font-semibold text-emerald-700">Disabled (Secure)</span>
-          </div>
-        </Card>
-      </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* New Sale (Primary Action) */}
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate('/sales')}
+              className="gap-1.5 font-semibold"
+            >
+              <ShoppingBag className="h-3.5 w-3.5" />
+              <span>New Sale</span>
+              <kbd className="hidden sm:inline-block px-1 py-0.2 text-[9px] font-mono bg-brand-700/80 text-white rounded">
+                F2
+              </kbd>
+            </Button>
 
-      {/* System Diagnostics Table */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold text-charcoal-800 uppercase tracking-wider">
-            Station & Server Diagnostics
-          </h2>
-          <span className="text-[11px] text-charcoal-500">
-            Auto-refreshed every 15s
-          </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/purchasing')}
+              className="gap-1.5"
+            >
+              <PackageCheck className="h-3.5 w-3.5 text-charcoal-600" />
+              <span>Receive Stock</span>
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/purchasing')}
+              className="gap-1.5"
+            >
+              <ShoppingCart className="h-3.5 w-3.5 text-charcoal-600" />
+              <span>Purchase Order</span>
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/payments')}
+              className="gap-1.5"
+            >
+              <CreditCard className="h-3.5 w-3.5 text-charcoal-600" />
+              <span>Customer Payment</span>
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/supplier-payments')}
+              className="gap-1.5"
+            >
+              <ArrowUpRight className="h-3.5 w-3.5 text-charcoal-600" />
+              <span>Supplier Payment</span>
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/inventory')}
+              className="gap-1.5"
+            >
+              <Layers className="h-3.5 w-3.5 text-charcoal-600" />
+              <span>Stock Adjustment</span>
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* 4. Main Operational Area */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Left Column: Today's Activity (7 Cols) */}
+        <div className="lg:col-span-7 space-y-3">
+          <Card
+            header={
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xs font-bold text-charcoal-900 uppercase tracking-wider">
+                    Today's Activity
+                  </h2>
+                  <p className="text-[11px] text-charcoal-500 font-normal">
+                    Transactions and billing movements recorded today
+                  </p>
+                </div>
+                <Link
+                  to="/sales"
+                  className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
+                >
+                  <span>View All Invoices</span>
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+            }
+            className="p-0 overflow-hidden"
+          >
+            {/* Activity Summary Badges */}
+            <div className="grid grid-cols-3 divide-x divide-surface-border border-b border-surface-border bg-surface-muted/30 p-2.5 text-center">
+              <div>
+                <p className="text-[10px] font-semibold uppercase text-charcoal-500">
+                  Invoices Billed
+                </p>
+                <p className="text-sm font-bold text-charcoal-900 font-mono mt-0.5">
+                  {metrics?.today?.invoiceCount || 0}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase text-charcoal-500">
+                  Goods Received
+                </p>
+                <p className="text-sm font-bold text-charcoal-900 font-mono mt-0.5">
+                  {metrics?.today?.grnCount || 0} GRNs
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase text-charcoal-500">
+                  Purchases Net
+                </p>
+                <p className="text-sm font-bold text-charcoal-900 font-mono mt-0.5">
+                  PKR {Number(metrics?.today?.purchasesNet || 0).toLocaleString('en-PK')}
+                </p>
+              </div>
+            </div>
+
+            {/* Recent Sales Invoices Mini-Table */}
+            <div className="p-3">
+              {recentInvoices.length === 0 ? (
+                <div className="py-8 text-center text-charcoal-400 flex flex-col items-center justify-center gap-1.5">
+                  <Inbox className="h-6 w-6 text-charcoal-300" />
+                  <p className="text-xs text-charcoal-500">
+                    No sales invoices recorded today yet.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => navigate('/sales')}
+                    className="mt-1"
+                  >
+                    Create First Bill
+                  </Button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded border border-surface-border">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-surface-muted/60 text-[11px] font-semibold text-charcoal-600 border-b border-surface-border select-none">
+                      <tr>
+                        <th className="px-3 py-1.5">Invoice #</th>
+                        <th className="px-3 py-1.5">Customer / Party</th>
+                        <th className="px-3 py-1.5 text-right">Net Total</th>
+                        <th className="px-3 py-1.5 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-border">
+                      {recentInvoices.map((inv) => (
+                        <tr
+                          key={inv.id}
+                          onClick={() => navigate('/sales')}
+                          className="hover:bg-surface-muted/40 cursor-pointer transition-colors"
+                        >
+                          <td className="px-3 py-2 font-mono font-medium text-brand-700">
+                            {inv.invoiceNumber}
+                          </td>
+                          <td className="px-3 py-2 font-medium text-charcoal-800 truncate max-w-[180px]">
+                            {inv.customer?.name || 'Walk-in Customer'}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-bold tabular-nums text-charcoal-900">
+                            PKR {Number(inv.netTotal).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <StatusBadge
+                              variant={
+                                inv.status === 'POSTED'
+                                  ? 'success'
+                                  : inv.status === 'DRAFT'
+                                  ? 'warning'
+                                  : 'error'
+                              }
+                            >
+                              {inv.status}
+                            </StatusBadge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-1/3">Component</TableHead>
-              <TableHead>Current Value / Target</TableHead>
-              <TableHead className="w-28 text-right">Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow>
-              <TableCell className="font-medium text-charcoal-900">
-                Backend API Endpoint
-              </TableCell>
-              <TableCell className="font-mono text-xs">{apiBaseUrl}</TableCell>
-              <TableCell className="text-right">
-                <StatusBadge
-                  variant={backendStatus === 'connected' ? 'success' : 'error'}
-                >
-                  {backendStatus === 'connected' ? 'Active' : 'Offline'}
-                </StatusBadge>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-medium text-charcoal-900">
-                PostgreSQL Database Connection
-              </TableCell>
-              <TableCell className="text-xs text-charcoal-700">
-                {health?.database.status === 'connected'
-                  ? 'PostgreSQL ready via Prisma Client'
-                  : 'Database ping returned disconnected or pending init'}
-              </TableCell>
-              <TableCell className="text-right">
-                <StatusBadge
-                  variant={
-                    health?.database.status === 'connected'
-                      ? 'success'
-                      : 'warning'
-                  }
-                >
-                  {health?.database.status === 'connected'
-                    ? 'Connected'
-                    : 'Pending'}
-                </StatusBadge>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-medium text-charcoal-900">
-                Server Uptime
-              </TableCell>
-              <TableCell className="font-mono text-xs">
-                {health?.uptimeSeconds !== undefined
-                  ? `${Math.floor(health.uptimeSeconds / 60)}m ${health.uptimeSeconds % 60}s`
-                  : 'N/A'}
-              </TableCell>
-              <TableCell className="text-right">
-                <StatusBadge variant="info">Recorded</StatusBadge>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-medium text-charcoal-900">
-                Backend Environment
-              </TableCell>
-              <TableCell className="font-mono text-xs">
-                {health?.environment || 'development'}
-              </TableCell>
-              <TableCell className="text-right">
-                <StatusBadge variant="neutral">
-                  {health?.environment || 'development'}
-                </StatusBadge>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-medium text-charcoal-900">
-                Application Architecture
-              </TableCell>
-              <TableCell className="text-xs text-charcoal-700">
-                Electron/React → HTTP REST → NestJS → Prisma → PostgreSQL
-              </TableCell>
-              <TableCell className="text-right">
-                <StatusBadge variant="success">Verified</StatusBadge>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </div>
+        {/* Right Column: Attention Required (5 Cols) */}
+        <div className="lg:col-span-5 space-y-3">
+          <Card
+            header={
+              <div>
+                <h2 className="text-xs font-bold text-charcoal-900 uppercase tracking-wider">
+                  Attention Required
+                </h2>
+                <p className="text-[11px] text-charcoal-500 font-normal">
+                  Operational alerts requiring inventory and accounting action
+                </p>
+              </div>
+            }
+            className="p-3 space-y-2.5"
+          >
+            {/* 1. Expiring Batches */}
+            <Link
+              to="/expiry-recalls"
+              className="block p-2.5 rounded border border-surface-border bg-surface-card hover:bg-surface-muted/40 hover:border-surface-borderStrong transition-all group"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1.5 rounded bg-red-50 text-red-700 border border-red-200 shrink-0 mt-0.5">
+                    <ShieldAlert className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-charcoal-900 group-hover:text-brand-600 transition-colors">
+                      Expiring & Expired Batches
+                    </p>
+                    <p className="text-[11px] text-charcoal-500 mt-0.5">
+                      Batches expired or below minimum shelf life (&lt;{minShelfLifeDays} days)
+                    </p>
+                  </div>
+                </div>
 
-      {/* Note regarding upcoming business modules */}
-      <div className="rounded border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-900 space-y-1">
-        <p className="font-bold flex items-center gap-1.5">
-          <AlertCircle className="h-4 w-4 text-amber-700" />
-          Foundation Mode Active
-        </p>
-        <p className="leading-relaxed">
-          Production foundation setup is in place. Business modules (Products,
-          Inventory, Sales, Purchasing, Customers, Suppliers, Reports) will be
-          built systematically in upcoming phases.
-        </p>
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold font-mono bg-red-50 text-red-800 border border-red-200 shrink-0">
+                  {totalExpiringCount} Batches
+                </span>
+              </div>
+            </Link>
+
+            {/* 2. Customers Over Credit Limit */}
+            <Link
+              to="/customers"
+              className="block p-2.5 rounded border border-surface-border bg-surface-card hover:bg-surface-muted/40 hover:border-surface-borderStrong transition-all group"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1.5 rounded bg-amber-50 text-amber-700 border border-amber-200 shrink-0 mt-0.5">
+                    <AlertTriangle className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-charcoal-900 group-hover:text-brand-600 transition-colors">
+                      Customers Over Credit Limit
+                    </p>
+                    <p className="text-[11px] text-charcoal-500 mt-0.5">
+                      Parties with outstanding exceeding sanctioned limits
+                    </p>
+                  </div>
+                </div>
+
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold font-mono bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                  {overLimitCount} Parties
+                </span>
+              </div>
+            </Link>
+
+            {/* 3. Past-Due Customer Receivables */}
+            <Link
+              to="/reports"
+              className="block p-2.5 rounded border border-surface-border bg-surface-card hover:bg-surface-muted/40 hover:border-surface-borderStrong transition-all group"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1.5 rounded bg-amber-50 text-amber-700 border border-amber-200 shrink-0 mt-0.5">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-charcoal-900 group-hover:text-brand-600 transition-colors">
+                      Past-Due Customer Receivables
+                    </p>
+                    <p className="text-[11px] text-charcoal-500 mt-0.5">
+                      Invoices past agreed customer credit terms
+                    </p>
+                  </div>
+                </div>
+
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold font-mono bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                  PKR {Math.round(pastDueReceivablesAmount).toLocaleString('en-PK')}
+                </span>
+              </div>
+            </Link>
+
+            {/* 4. Past-Due Supplier Payables */}
+            <Link
+              to="/supplier-payments"
+              className="block p-2.5 rounded border border-surface-border bg-surface-card hover:bg-surface-muted/40 hover:border-surface-borderStrong transition-all group"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1.5 rounded bg-blue-50 text-blue-700 border border-blue-200 shrink-0 mt-0.5">
+                    <Building2 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-charcoal-900 group-hover:text-brand-600 transition-colors">
+                      Past-Due Supplier Payables
+                    </p>
+                    <p className="text-[11px] text-charcoal-500 mt-0.5">
+                      Purchase bills past vendor payment terms
+                    </p>
+                  </div>
+                </div>
+
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold font-mono bg-blue-50 text-blue-800 border border-blue-200 shrink-0">
+                  PKR {Math.round(pastDuePayablesAmount).toLocaleString('en-PK')}
+                </span>
+              </div>
+            </Link>
+          </Card>
+        </div>
       </div>
     </div>
   );

@@ -53,6 +53,14 @@ export interface PrintableSalesInvoice {
   salesmanName?: string | null;
   branchName?: string | null;
   customer: PrintablePartyInfo;
+  deliveryInfo?: {
+    title?: string | null;
+    recipientName?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    city?: string | null;
+    instructions?: string | null;
+  } | null;
   lines: PrintableInvoiceLine[];
   subtotal: number;
   totalDiscount: number;

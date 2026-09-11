@@ -14,11 +14,15 @@ import {
   ShieldCheck,
   Tag,
   Percent,
+  MapPin,
+  Trash2,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
   getCustomers,
   createCustomer,
@@ -26,21 +30,31 @@ import {
   getCustomerLedger,
   getCustomerPricing,
   upsertCustomerPricing,
+  customerAddressesApi,
   productsApi,
+  salesOperationsApi,
   Customer,
   CustomerType,
   CustomerLedgerResponse,
   CreateCustomerPayload,
   UpdateCustomerPayload,
   CustomerPricingRule,
+  CustomerDeliveryAddress,
+  CreateCustomerAddressPayload,
   Product,
+  Salesman,
+  SalesRoute,
 } from '../api';
 
 export const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [salesmenList, setSalesmenList] = useState<Salesman[]>([]);
+  const [routesList, setRoutesList] = useState<SalesRoute[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
+  const [salesmanFilter, setSalesmanFilter] = useState<string>('ALL');
+  const [routeFilter, setRouteFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
 
   // Feedback toast
@@ -74,6 +88,25 @@ export const CustomersPage: React.FC = () => {
   const [newRuleCustomPrice, setNewRuleCustomPrice] = useState<string>('');
   const [newRuleDiscountPct, setNewRuleDiscountPct] = useState<string>('');
 
+  // Delivery Addresses Modal state
+  const [addressesCustomer, setAddressesCustomer] = useState<Customer | null>(null);
+  const [customerAddresses, setCustomerAddresses] = useState<CustomerDeliveryAddress[]>([]);
+  const [addressesLoading, setAddressesLoading] = useState<boolean>(false);
+  const [isAddressFormOpen, setIsAddressFormOpen] = useState<boolean>(false);
+  const [editingAddress, setEditingAddress] = useState<CustomerDeliveryAddress | null>(null);
+  const [addressToDelete, setAddressToDelete] = useState<CustomerDeliveryAddress | null>(null);
+  const [addressFormData, setAddressFormData] = useState<CreateCustomerAddressPayload>({
+    title: '',
+    recipientName: '',
+    phone: '',
+    address: '',
+    city: '',
+    routeId: '',
+    deliveryInstructions: '',
+    isDefault: false,
+    isActive: true,
+  });
+
   // Form State
   const [formData, setFormData] = useState<CreateCustomerPayload>({
     code: '',
@@ -90,10 +123,29 @@ export const CustomersPage: React.FC = () => {
     creditDays: 30,
     creditLimit: 0,
     defaultDiscountPercentage: 0,
+    defaultSalesmanId: '',
+    routeId: '',
     isTaxExempt: false,
     openingBalance: 0,
     isActive: true,
   });
+
+  // Load master data (salesmen & routes)
+  useEffect(() => {
+    const fetchMasterData = async () => {
+      try {
+        const [smRes, rtRes] = await Promise.all([
+          salesOperationsApi.getSalesmen({ isActive: true, limit: 500 }),
+          salesOperationsApi.getRoutes({ isActive: true, limit: 500 }),
+        ]);
+        setSalesmenList(smRes.items || []);
+        setRoutesList(rtRes.items || []);
+      } catch (e) {
+        console.error('Failed to load salesmen/routes master data', e);
+      }
+    };
+    fetchMasterData();
+  }, []);
 
   // Load customers list
   const loadCustomers = useCallback(async () => {
@@ -102,6 +154,8 @@ export const CustomersPage: React.FC = () => {
       const res = await getCustomers({
         search: search.trim() || undefined,
         customerType: typeFilter === 'ALL' ? undefined : (typeFilter as CustomerType),
+        salesmanId: salesmanFilter === 'ALL' ? undefined : salesmanFilter,
+        routeId: routeFilter === 'ALL' ? undefined : routeFilter,
         isActive: statusFilter === 'ALL' ? undefined : statusFilter === 'ACTIVE',
         limit: 100,
       });
@@ -111,7 +165,7 @@ export const CustomersPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [search, typeFilter, statusFilter]);
+  }, [search, typeFilter, salesmanFilter, routeFilter, statusFilter]);
 
   useEffect(() => {
     loadCustomers();
@@ -142,6 +196,8 @@ export const CustomersPage: React.FC = () => {
           creditDays: Number(formData.creditDays) || 0,
           creditLimit: Number(formData.creditLimit) || 0,
           defaultDiscountPercentage: Number(formData.defaultDiscountPercentage) || 0,
+          defaultSalesmanId: formData.defaultSalesmanId || undefined,
+          routeId: formData.routeId || undefined,
           isTaxExempt: formData.isTaxExempt,
           isActive: formData.isActive,
         };
@@ -153,6 +209,8 @@ export const CustomersPage: React.FC = () => {
           creditDays: Number(formData.creditDays) || 0,
           creditLimit: Number(formData.creditLimit) || 0,
           defaultDiscountPercentage: Number(formData.defaultDiscountPercentage) || 0,
+          defaultSalesmanId: formData.defaultSalesmanId || undefined,
+          routeId: formData.routeId || undefined,
           openingBalance: Number(formData.openingBalance) || 0,
         });
         showFeedback('success', `Customer "${formData.name}" created successfully.`);
@@ -184,6 +242,8 @@ export const CustomersPage: React.FC = () => {
       creditDays: cust.creditDays || 0,
       creditLimit: Number(cust.creditLimit) || 0,
       defaultDiscountPercentage: Number(cust.defaultDiscountPercentage) || 0,
+      defaultSalesmanId: cust.defaultSalesmanId || '',
+      routeId: cust.routeId || '',
       isTaxExempt: cust.isTaxExempt || false,
       openingBalance: 0,
       isActive: cust.isActive,
@@ -209,6 +269,8 @@ export const CustomersPage: React.FC = () => {
       creditDays: 30,
       creditLimit: 0,
       defaultDiscountPercentage: 0,
+      defaultSalesmanId: '',
+      routeId: '',
       isTaxExempt: false,
       openingBalance: 0,
       isActive: true,
@@ -291,6 +353,127 @@ export const CustomersPage: React.FC = () => {
       setNewRuleDiscountPct('');
     } catch (err: any) {
       showFeedback('error', err.response?.data?.message || err.message || 'Failed to save rule');
+    }
+  };
+
+  // =========================================================================
+  // DELIVERY ADDRESSES HANDLERS
+  // =========================================================================
+
+  const loadCustomerAddresses = async (customerId: string) => {
+    setAddressesLoading(true);
+    try {
+      const res = await customerAddressesApi.list(customerId);
+      setCustomerAddresses(Array.isArray(res) ? res : (res as any)?.items || []);
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.message || err.message || 'Failed to load delivery addresses');
+    } finally {
+      setAddressesLoading(false);
+    }
+  };
+
+  const openAddressesModal = (cust: Customer) => {
+    setAddressesCustomer(cust);
+    loadCustomerAddresses(cust.id);
+  };
+
+  const openAddAddressForm = () => {
+    setEditingAddress(null);
+    setAddressFormData({
+      title: '',
+      recipientName: '',
+      phone: '',
+      address: '',
+      city: addressesCustomer?.city || '',
+      routeId: addressesCustomer?.routeId || '',
+      deliveryInstructions: '',
+      isDefault: customerAddresses.length === 0,
+      isActive: true,
+    });
+    setIsAddressFormOpen(true);
+  };
+
+  const openEditAddressForm = (addr: CustomerDeliveryAddress) => {
+    setEditingAddress(addr);
+    setAddressFormData({
+      title: addr.title,
+      recipientName: addr.recipientName || '',
+      phone: addr.phone || '',
+      address: addr.address,
+      city: addr.city || '',
+      routeId: addr.routeId || '',
+      deliveryInstructions: addr.deliveryInstructions || '',
+      isDefault: addr.isDefault,
+      isActive: addr.isActive,
+    });
+    setIsAddressFormOpen(true);
+  };
+
+  const handleSaveAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addressesCustomer) return;
+    if (!addressFormData.title.trim() || !addressFormData.address.trim()) {
+      showFeedback('error', 'Title and physical address are required.');
+      return;
+    }
+
+    try {
+      if (editingAddress) {
+        await customerAddressesApi.update(addressesCustomer.id, editingAddress.id, {
+          title: addressFormData.title.trim(),
+          recipientName: addressFormData.recipientName?.trim() || undefined,
+          phone: addressFormData.phone?.trim() || undefined,
+          address: addressFormData.address.trim(),
+          city: addressFormData.city?.trim() || undefined,
+          routeId: addressFormData.routeId || undefined,
+          deliveryInstructions: addressFormData.deliveryInstructions?.trim() || undefined,
+          isDefault: addressFormData.isDefault,
+          isActive: addressFormData.isActive,
+        });
+        showFeedback('success', `Delivery address "${addressFormData.title}" updated.`);
+      } else {
+        await customerAddressesApi.create(addressesCustomer.id, {
+          title: addressFormData.title.trim(),
+          recipientName: addressFormData.recipientName?.trim() || undefined,
+          phone: addressFormData.phone?.trim() || undefined,
+          address: addressFormData.address.trim(),
+          city: addressFormData.city?.trim() || undefined,
+          routeId: addressFormData.routeId || undefined,
+          deliveryInstructions: addressFormData.deliveryInstructions?.trim() || undefined,
+          isDefault: addressFormData.isDefault,
+          isActive: addressFormData.isActive,
+        });
+        showFeedback('success', `Delivery address "${addressFormData.title}" added.`);
+      }
+
+      setIsAddressFormOpen(false);
+      setEditingAddress(null);
+      loadCustomerAddresses(addressesCustomer.id);
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.message || err.message || 'Failed to save address');
+    }
+  };
+
+  const handleSetDefaultAddress = async (addr: CustomerDeliveryAddress) => {
+    if (!addressesCustomer) return;
+    try {
+      await customerAddressesApi.setDefault(addressesCustomer.id, addr.id);
+      showFeedback('success', `Address "${addr.title}" set as default.`);
+      loadCustomerAddresses(addressesCustomer.id);
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.message || err.message || 'Failed to set default address');
+    }
+  };
+
+  const handleConfirmDeleteAddress = async () => {
+    if (!addressesCustomer || !addressToDelete) return;
+    try {
+      const res = await customerAddressesApi.delete(addressesCustomer.id, addressToDelete.id);
+      showFeedback('success', res.message || 'Address removed.');
+      setAddressToDelete(null);
+      loadCustomerAddresses(addressesCustomer.id);
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.message || err.message || 'Failed to delete address');
     }
   };
 
@@ -435,7 +618,33 @@ export const CustomersPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+            <select
+              value={salesmanFilter}
+              onChange={(e) => setSalesmanFilter(e.target.value)}
+              className="h-9 px-3 rounded-md border border-surface-border bg-white text-xs font-medium text-charcoal-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              <option value="ALL">All Salesmen</option>
+              {salesmenList.map((sm) => (
+                <option key={sm.id} value={sm.id}>
+                  {sm.name} ({sm.code})
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={routeFilter}
+              onChange={(e) => setRouteFilter(e.target.value)}
+              className="h-9 px-3 rounded-md border border-surface-border bg-white text-xs font-medium text-charcoal-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              <option value="ALL">All Routes</option>
+              {routesList.map((rt) => (
+                <option key={rt.id} value={rt.id}>
+                  {rt.name} ({rt.code})
+                </option>
+              ))}
+            </select>
+
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
@@ -468,6 +677,7 @@ export const CustomersPage: React.FC = () => {
               <tr className="border-b border-surface-border bg-surface-muted/40 text-charcoal-600 font-semibold uppercase tracking-wider text-[10px]">
                 <th className="py-3 px-4">Code / ID</th>
                 <th className="py-3 px-4">Customer Name & Type</th>
+                <th className="py-3 px-4">Salesman & Route</th>
                 <th className="py-3 px-4">Contact Info</th>
                 <th className="py-3 px-4">Credit Terms</th>
                 <th className="py-3 px-4 text-right">Credit Limit</th>
@@ -479,7 +689,7 @@ export const CustomersPage: React.FC = () => {
             <tbody className="divide-y divide-surface-border">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-charcoal-400">
+                  <td colSpan={9} className="py-12 text-center text-charcoal-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <RefreshCw className="h-6 w-6 animate-spin text-brand-600" />
                       <span>Loading customer directory...</span>
@@ -488,7 +698,7 @@ export const CustomersPage: React.FC = () => {
                 </tr>
               ) : customers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-charcoal-400">
+                  <td colSpan={9} className="py-12 text-center text-charcoal-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Users className="h-8 w-8 text-charcoal-300" />
                       <span className="font-medium text-charcoal-600">No customers found</span>
@@ -526,6 +736,24 @@ export const CustomersPage: React.FC = () => {
                             <span className="text-charcoal-400">
                               • Lic: {cust.drugSaleLicenseNo}
                             </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-charcoal-800 flex items-center gap-1">
+                          {cust.defaultSalesman ? (
+                            <span>{cust.defaultSalesman.name}</span>
+                          ) : (
+                            <span className="text-charcoal-400 italic">No Salesman</span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-charcoal-500 flex items-center gap-1 mt-0.5">
+                          {cust.route ? (
+                            <span className="px-1.5 py-0.2 rounded bg-brand-50 text-brand-700 font-medium">
+                              Route: {cust.route.name}
+                            </span>
+                          ) : (
+                            <span className="text-charcoal-400 italic">No Route</span>
                           )}
                         </div>
                       </td>
@@ -574,6 +802,16 @@ export const CustomersPage: React.FC = () => {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {cust.customerType !== 'WALK_IN' && (
+                            <button
+                              type="button"
+                              onClick={() => openAddressesModal(cust)}
+                              title="Customer Delivery Addresses"
+                              className="p-1 rounded hover:bg-brand-50 text-charcoal-600 hover:text-brand-600 transition-colors"
+                            >
+                              <MapPin className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => openPricingModal(cust)}
@@ -831,6 +1069,46 @@ export const CustomersPage: React.FC = () => {
                     }
                     className="text-xs"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                    Default Salesman
+                  </label>
+                  <select
+                    value={formData.defaultSalesmanId || ''}
+                    onChange={(e) =>
+                      setFormData({ ...formData, defaultSalesmanId: e.target.value })
+                    }
+                    className="w-full h-9 px-3 rounded-md border border-surface-border bg-white text-xs text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  >
+                    <option value="">-- No Salesman Assigned --</option>
+                    {salesmenList.map((sm) => (
+                      <option key={sm.id} value={sm.id}>
+                        {sm.name} ({sm.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                    Sales Route / Territory
+                  </label>
+                  <select
+                    value={formData.routeId || ''}
+                    onChange={(e) =>
+                      setFormData({ ...formData, routeId: e.target.value })
+                    }
+                    className="w-full h-9 px-3 rounded-md border border-surface-border bg-white text-xs text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  >
+                    <option value="">-- No Route Assigned --</option>
+                    {routesList.map((rt) => (
+                      <option key={rt.id} value={rt.id}>
+                        {rt.name} ({rt.code}){rt.city ? ` - ${rt.city}` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -1250,6 +1528,321 @@ export const CustomersPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: Customer Delivery Addresses Management */}
+      <Modal
+        isOpen={!!addressesCustomer}
+        onClose={() => {
+          setAddressesCustomer(null);
+          setCustomerAddresses([]);
+        }}
+        title={addressesCustomer ? `Delivery Addresses — ${addressesCustomer.name}` : 'Delivery Addresses'}
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-charcoal-500">
+              Manage physical receiving locations, site contact persons, and default dispatch routes.
+            </p>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={openAddAddressForm}
+              className="flex items-center gap-1.5 text-xs font-semibold"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add Delivery Address</span>
+            </Button>
+          </div>
+
+          <div className="border border-surface-border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-surface-muted/60 sticky top-0 border-b border-surface-border">
+                <tr className="text-[10px] text-charcoal-600 uppercase font-semibold">
+                  <th className="py-2.5 px-3">Location / Site</th>
+                  <th className="py-2.5 px-3">Recipient & Contact</th>
+                  <th className="py-2.5 px-3">Physical Address</th>
+                  <th className="py-2.5 px-3">Default Route</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {addressesLoading ? (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-charcoal-400">
+                      <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-1.5 text-brand-600" />
+                      <span>Loading delivery addresses...</span>
+                    </td>
+                  </tr>
+                ) : customerAddresses.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-charcoal-400">
+                      <MapPin className="h-8 w-8 text-charcoal-300 mx-auto mb-2" />
+                      <p className="font-semibold text-charcoal-700">No delivery addresses configured</p>
+                      <p className="text-[11px] text-charcoal-400 mt-0.5">
+                        Add destination branch, hospital ward, or dispensary unit addresses for this customer.
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  customerAddresses.map((addr) => (
+                    <tr key={addr.id} className="hover:bg-surface-muted/20 transition-colors">
+                      <td className="py-2.5 px-3 align-top">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-charcoal-900">{addr.title}</span>
+                          {addr.isDefault && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              DEFAULT
+                            </span>
+                          )}
+                          {!addr.isActive && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-charcoal-100 text-charcoal-600 border border-charcoal-200">
+                              INACTIVE
+                            </span>
+                          )}
+                        </div>
+                        {addr.deliveryInstructions && (
+                          <p className="text-[10px] text-amber-800 italic mt-0.5" title={addr.deliveryInstructions}>
+                            Note: {addr.deliveryInstructions}
+                          </p>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 align-top">
+                        <div className="text-charcoal-800 font-medium">{addr.recipientName || '—'}</div>
+                        {addr.phone && <div className="text-[11px] text-charcoal-500">{addr.phone}</div>}
+                      </td>
+                      <td className="py-2.5 px-3 align-top">
+                        <div className="text-charcoal-800">{addr.address}</div>
+                        {addr.city && <div className="text-[11px] text-charcoal-500">{addr.city}</div>}
+                      </td>
+                      <td className="py-2.5 px-3 align-top">
+                        {addr.route ? (
+                          <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-brand-50 text-brand-700 border border-brand-200">
+                            {addr.route.name}
+                          </span>
+                        ) : (
+                          <span className="text-charcoal-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right align-top">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {!addr.isDefault && addr.isActive && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSetDefaultAddress(addr)}
+                              className="h-7 text-[11px] px-2 text-brand-700 hover:text-brand-900 font-semibold"
+                            >
+                              Set Default
+                            </Button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => openEditAddressForm(addr)}
+                            title="Edit Address"
+                            className="p-1 rounded hover:bg-surface-muted text-charcoal-500 hover:text-brand-600 transition-colors"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAddressToDelete(addr)}
+                            title="Delete / Deactivate Address"
+                            className="p-1 rounded hover:bg-rose-50 text-charcoal-500 hover:text-rose-600 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-surface-border">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAddressesCustomer(null);
+                setCustomerAddresses([]);
+              }}
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* SUB-MODAL: Add / Edit Customer Delivery Address */}
+      <Modal
+        isOpen={isAddressFormOpen}
+        onClose={() => {
+          setIsAddressFormOpen(false);
+          setEditingAddress(null);
+        }}
+        title={editingAddress ? 'Edit Delivery Address' : 'Add Delivery Address'}
+        size="md"
+      >
+        <form onSubmit={handleSaveAddress} className="space-y-3.5">
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+              Address Title / Site Name *
+            </label>
+            <Input
+              type="text"
+              required
+              placeholder="e.g. Main Hospital Pharmacy, OPD Branch, Warehouse 2"
+              value={addressFormData.title}
+              onChange={(e) => setAddressFormData({ ...addressFormData, title: e.target.value })}
+              className="text-xs"
+              autoFocus
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                Recipient / Contact Person
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g. Dr. Tariq Mehmood"
+                value={addressFormData.recipientName || ''}
+                onChange={(e) => setAddressFormData({ ...addressFormData, recipientName: e.target.value })}
+                className="text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                Site Contact Phone
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g. 0300-1234567"
+                value={addressFormData.phone || ''}
+                onChange={(e) => setAddressFormData({ ...addressFormData, phone: e.target.value })}
+                className="text-xs"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+              Physical Street / Unit Address *
+            </label>
+            <Input
+              type="text"
+              required
+              placeholder="e.g. Shop # 12, Main Commercial Market, Saddar"
+              value={addressFormData.address}
+              onChange={(e) => setAddressFormData({ ...addressFormData, address: e.target.value })}
+              className="text-xs"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                City
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g. Karachi"
+                value={addressFormData.city || ''}
+                onChange={(e) => setAddressFormData({ ...addressFormData, city: e.target.value })}
+                className="text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                Default Route (Suggestion)
+              </label>
+              <select
+                value={addressFormData.routeId || ''}
+                onChange={(e) => setAddressFormData({ ...addressFormData, routeId: e.target.value })}
+                className="w-full h-9 px-3 rounded-md border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                <option value="">No Default Route</option>
+                {routesList.map((rt) => (
+                  <option key={rt.id} value={rt.id}>
+                    {rt.name} ({rt.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+              Delivery / Receiving Instructions
+            </label>
+            <Input
+              type="text"
+              placeholder="e.g. Deliver to back loading dock between 10am-4pm"
+              value={addressFormData.deliveryInstructions || ''}
+              onChange={(e) => setAddressFormData({ ...addressFormData, deliveryInstructions: e.target.value })}
+              className="text-xs"
+            />
+          </div>
+
+          <div className="flex items-center gap-6 pt-2">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-charcoal-700">
+              <input
+                type="checkbox"
+                checked={addressFormData.isDefault}
+                onChange={(e) => setAddressFormData({ ...addressFormData, isDefault: e.target.checked })}
+                className="rounded border-surface-border text-brand-600 focus:ring-brand-500 h-4 w-4"
+              />
+              <span>Set as Default Delivery Address</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-charcoal-700">
+              <input
+                type="checkbox"
+                checked={addressFormData.isActive}
+                onChange={(e) => setAddressFormData({ ...addressFormData, isActive: e.target.checked })}
+                className="rounded border-surface-border text-brand-600 focus:ring-brand-500 h-4 w-4"
+              />
+              <span>Active Address</span>
+            </label>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-4 border-t border-surface-border">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsAddressFormOpen(false);
+                setEditingAddress(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" className="font-semibold text-xs px-4">
+              {editingAddress ? 'Update Address' : 'Save Address'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* CONFIRM DIALOG: Delete / Deactivate Address */}
+      {addressToDelete && (
+        <ConfirmDialog
+          isOpen={true}
+          onClose={() => setAddressToDelete(null)}
+          onConfirm={handleConfirmDeleteAddress}
+          title="Remove Delivery Address"
+          description={`Are you sure you want to remove delivery address "${addressToDelete.title}"? If referenced by existing sales invoices, it will be safely deactivated to preserve historical invoice records.`}
+          confirmText="Remove Address"
+          variant="danger"
+        />
       )}
     </div>
   );

@@ -40,6 +40,14 @@ export const SalesInvoicePrintTemplate: React.FC<SalesInvoicePrintTemplateProps>
           {invoice.customer.code && <div>Cust Code: {invoice.customer.code}</div>}
           {invoice.customer.drugSaleLicenseNo && <div>Cust DSL: {invoice.customer.drugSaleLicenseNo}</div>}
           {invoice.salesmanName && <div>Salesman: {invoice.salesmanName}</div>}
+          {invoice.deliveryInfo?.address && (
+            <div className="pt-1 border-t border-dotted border-black mt-1">
+              <div>Ship To: <strong>{invoice.deliveryInfo.title || invoice.deliveryInfo.recipientName || 'Delivery Site'}</strong></div>
+              <div>{invoice.deliveryInfo.address}{invoice.deliveryInfo.city ? `, ${invoice.deliveryInfo.city}` : ''}</div>
+              {invoice.deliveryInfo.phone && <div>Tel: {invoice.deliveryInfo.phone}</div>}
+              {invoice.deliveryInfo.instructions && <div>Note: {invoice.deliveryInfo.instructions}</div>}
+            </div>
+          )}
         </div>
 
         {/* Items List */}
@@ -156,7 +164,7 @@ export const SalesInvoicePrintTemplate: React.FC<SalesInvoicePrintTemplateProps>
       </div>
 
       {/* Bill To & Dispatch Details */}
-      <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50 border border-gray-200 rounded">
+      <div className={`grid ${invoice.deliveryInfo?.address ? 'grid-cols-3' : 'grid-cols-2'} gap-4 p-3 bg-gray-50 border border-gray-200 rounded`}>
         <div>
           <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
             Billed To Customer:
@@ -180,6 +188,32 @@ export const SalesInvoicePrintTemplate: React.FC<SalesInvoicePrintTemplateProps>
             )}
           </div>
         </div>
+
+        {/* Ship To / Delivery Destination (when snapshot exists) */}
+        {invoice.deliveryInfo?.address && (
+          <div>
+            <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+              Ship To / Delivery Destination:
+            </span>
+            <div className="text-sm font-bold text-gray-900 mt-0.5">
+              {invoice.deliveryInfo.title || invoice.customer.name}
+            </div>
+            {invoice.deliveryInfo.recipientName && (
+              <div className="text-gray-700 text-[11px]"><strong>Attn:</strong> {invoice.deliveryInfo.recipientName}</div>
+            )}
+            <div className="text-gray-600 text-[11px]">
+              {invoice.deliveryInfo.address}{invoice.deliveryInfo.city ? `, ${invoice.deliveryInfo.city}` : ''}
+            </div>
+            {invoice.deliveryInfo.phone && (
+              <div className="text-gray-700 text-[11px]"><strong>Phone:</strong> {invoice.deliveryInfo.phone}</div>
+            )}
+            {invoice.deliveryInfo.instructions && (
+              <div className="text-amber-800 text-[10px] italic mt-0.5">
+                <strong>Instructions:</strong> {invoice.deliveryInfo.instructions}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="text-right space-y-1 text-[11px]">
           <div><strong>Payment Terms:</strong> {invoice.paymentTerms || 'Cash / Credit'}</div>

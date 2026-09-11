@@ -27,6 +27,11 @@ export interface Customer {
   creditLimit: string | number;
   currentBalance: string | number;
   defaultDiscountPercentage: string | number;
+  defaultSalesmanId?: string | null;
+  routeId?: string | null;
+  defaultSalesman?: { id: string; name: string; code: string; phone?: string | null } | null;
+  route?: { id: string; name: string; code: string; city?: string | null; area?: string | null } | null;
+  deliveryAddresses?: CustomerDeliveryAddress[];
   isTaxExempt: boolean;
   isActive: boolean;
   createdAt: string;
@@ -35,7 +40,57 @@ export interface Customer {
     salesInvoices: number;
     ledgerEntries: number;
     pricingRules?: number;
+    deliveryAddresses?: number;
   };
+}
+
+export interface CustomerDeliveryAddress {
+  id: string;
+  organizationId: string;
+  customerId: string;
+  title: string;
+  recipientName?: string | null;
+  phone?: string | null;
+  address: string;
+  city?: string | null;
+  routeId?: string | null;
+  route?: { id: string; name: string; code: string; city?: string | null; area?: string | null } | null;
+  deliveryInstructions?: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCustomerAddressPayload {
+  title: string;
+  recipientName?: string;
+  phone?: string;
+  address: string;
+  city?: string;
+  routeId?: string;
+  deliveryInstructions?: string;
+  isDefault?: boolean;
+  isActive?: boolean;
+}
+
+export interface UpdateCustomerAddressPayload {
+  title?: string;
+  recipientName?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  routeId?: string;
+  deliveryInstructions?: string;
+  isDefault?: boolean;
+  isActive?: boolean;
+}
+
+export interface QueryCustomerAddressParams {
+  search?: string;
+  isActive?: boolean;
+  city?: string;
+  routeId?: string;
 }
 
 export type CustomerLedgerEntryType =
@@ -113,6 +168,8 @@ export interface CreateCustomerPayload {
   creditDays?: number;
   creditLimit?: number;
   defaultDiscountPercentage?: number;
+  defaultSalesmanId?: string;
+  routeId?: string;
   isTaxExempt?: boolean;
   openingBalance?: number;
   isActive?: boolean;
@@ -133,6 +190,8 @@ export interface UpdateCustomerPayload {
   creditDays?: number;
   creditLimit?: number;
   defaultDiscountPercentage?: number;
+  defaultSalesmanId?: string;
+  routeId?: string;
   isTaxExempt?: boolean;
   isActive?: boolean;
 }
@@ -151,6 +210,8 @@ export const customersApi = {
   getCustomers: async (params?: {
     search?: string;
     customerType?: CustomerType;
+    salesmanId?: string;
+    routeId?: string;
     isActive?: boolean;
     page?: number;
     limit?: number;
@@ -228,6 +289,72 @@ export const customersApi = {
   },
 };
 
+export const customerAddressesApi = {
+  list: async (
+    customerId: string,
+    params?: QueryCustomerAddressParams,
+  ): Promise<CustomerDeliveryAddress[]> => {
+    const response = (await apiClient.get(
+      `/customers/${customerId}/addresses`,
+      { params },
+    )) as unknown as ApiResponse<CustomerDeliveryAddress[]>;
+    return response.data;
+  },
+
+  get: async (
+    customerId: string,
+    addressId: string,
+  ): Promise<CustomerDeliveryAddress> => {
+    const response = (await apiClient.get(
+      `/customers/${customerId}/addresses/${addressId}`,
+    )) as unknown as ApiResponse<CustomerDeliveryAddress>;
+    return response.data;
+  },
+
+  create: async (
+    customerId: string,
+    payload: CreateCustomerAddressPayload,
+  ): Promise<CustomerDeliveryAddress> => {
+    const response = (await apiClient.post(
+      `/customers/${customerId}/addresses`,
+      payload,
+    )) as unknown as ApiResponse<CustomerDeliveryAddress>;
+    return response.data;
+  },
+
+  update: async (
+    customerId: string,
+    addressId: string,
+    payload: UpdateCustomerAddressPayload,
+  ): Promise<CustomerDeliveryAddress> => {
+    const response = (await apiClient.put(
+      `/customers/${customerId}/addresses/${addressId}`,
+      payload,
+    )) as unknown as ApiResponse<CustomerDeliveryAddress>;
+    return response.data;
+  },
+
+  setDefault: async (
+    customerId: string,
+    addressId: string,
+  ): Promise<CustomerDeliveryAddress> => {
+    const response = (await apiClient.patch(
+      `/customers/${customerId}/addresses/${addressId}/default`,
+    )) as unknown as ApiResponse<CustomerDeliveryAddress>;
+    return response.data;
+  },
+
+  delete: async (
+    customerId: string,
+    addressId: string,
+  ): Promise<{ message: string; softDeleted: boolean; address?: CustomerDeliveryAddress }> => {
+    const response = (await apiClient.delete(
+      `/customers/${customerId}/addresses/${addressId}`,
+    )) as unknown as ApiResponse<{ message: string; softDeleted: boolean; address?: CustomerDeliveryAddress }>;
+    return response.data;
+  },
+};
+
 export const getCustomers = (params?: Parameters<typeof customersApi.getCustomers>[0]) =>
   customersApi.getCustomers(params);
 export const getCustomerById = (id: string) =>
@@ -246,4 +373,5 @@ export const upsertCustomerPricing = (
   customerId: string,
   payload: UpsertCustomerPricingPayload,
 ) => customersApi.upsertCustomerPricing(customerId, payload);
+
 

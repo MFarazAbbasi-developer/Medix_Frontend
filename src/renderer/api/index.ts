@@ -26,4 +26,5 @@ export * from './reports.api';
 export * from './admin.api';
 export * from './imports.api';
 export * from './onboarding.api';
+export * from './sales-operations.api';
 
