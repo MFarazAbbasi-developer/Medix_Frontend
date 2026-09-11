@@ -22,6 +22,7 @@ import {
   ShoppingBag,
   UserCheck,
   MapPin,
+  Truck,
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { clsx } from 'clsx';
@@ -57,6 +58,7 @@ export const AppSidebar: React.FC = () => {
       items: [
         { to: '/salesmen', label: 'Salesmen', icon: UserCheck },
         { to: '/routes', label: 'Routes', icon: MapPin },
+        { to: '/delivery-orders', label: 'Delivery Orders', icon: Truck },
       ],
     },
     {

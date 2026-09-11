@@ -60,6 +60,9 @@ const SalesmenPage = lazy(() =>
 const SalesRoutesPage = lazy(() =>
   import('./SalesRoutesPage').then((m) => ({ default: m.SalesRoutesPage })),
 );
+const DeliveryOrdersPage = lazy(() =>
+  import('./DeliveryOrdersPage').then((m) => ({ default: m.DeliveryOrdersPage })),
+);
 const PurchasingPage = lazy(() =>
   import('./PurchasingPage').then((m) => ({ default: m.PurchasingPage })),
 );
@@ -104,6 +107,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="customers" element={<CustomersPage />} />
             <Route path="salesmen" element={<SalesmenPage />} />
             <Route path="routes" element={<SalesRoutesPage />} />
+            <Route path="delivery-orders" element={<DeliveryOrdersPage />} />
             <Route path="purchasing" element={<PurchasingPage />} />
             <Route path="purchase-returns" element={<PurchaseReturnsPage />} />
             <Route path="suppliers" element={<SuppliersPage />} />
