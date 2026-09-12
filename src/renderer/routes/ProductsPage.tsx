@@ -19,6 +19,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Pagination } from '../components/ui/Pagination';
+import { toast } from '../components/ui/Toast';
 import {
   productsApi,
   Product,
@@ -69,6 +70,11 @@ export const ProductsPage: React.FC = () => {
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
+    if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
     setTimeout(() => setFeedback(null), 4000);
   };
 
@@ -748,6 +754,12 @@ export const ProductsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveProduct} className="space-y-4 text-xs">
+              {feedback && feedback.type === 'error' && (
+                <div className="flex items-center gap-2 p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded text-xs">
+                  <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                  <span>{feedback.message}</span>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <Input
                   label="User-Defined SKU / Item Code *"
@@ -973,6 +985,12 @@ export const ProductsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveBatch} className="space-y-3.5 text-xs">
+              {feedback && feedback.type === 'error' && (
+                <div className="flex items-center gap-2 p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded text-xs">
+                  <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                  <span>{feedback.message}</span>
+                </div>
+              )}
               <Input
                 label="Batch / Lot Number *"
                 value={editingBatch.batchNumber || ''}

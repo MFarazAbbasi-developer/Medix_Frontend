@@ -24,6 +24,7 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Pagination } from '../components/ui/Pagination';
 import { Combobox, ComboboxOption } from '../components/ui/Combobox';
+import { toast } from '../components/ui/Toast';
 import {
   inventoryApi,
   StockSummaryItem,
@@ -70,6 +71,11 @@ export const InventoryPage: React.FC = () => {
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
+    if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
     setTimeout(() => setFeedback(null), 4500);
   };
 

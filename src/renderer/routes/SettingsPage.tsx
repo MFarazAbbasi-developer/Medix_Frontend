@@ -20,6 +20,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Pagination } from '../components/ui/Pagination';
+import { toast } from '../components/ui/Toast';
 import { useAppStore } from '../store/appStore';
 import { useHealth } from '../hooks/useHealth';
 import {
@@ -79,6 +80,11 @@ export const SettingsPage: React.FC = () => {
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
+    if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
     setTimeout(() => setFeedback(null), 4000);
   };
 

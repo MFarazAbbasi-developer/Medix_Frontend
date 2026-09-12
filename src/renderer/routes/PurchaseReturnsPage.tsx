@@ -23,6 +23,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Pagination } from '../components/ui/Pagination';
 import { Combobox, ComboboxOption } from '../components/ui/Combobox';
+import { toast } from '../components/ui/Toast';
 import {
   purchaseReturnsApi,
   PurchaseReturn,
@@ -84,6 +85,11 @@ export const PurchaseReturnsPage: React.FC = () => {
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
+    if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
     setTimeout(() => setFeedback(null), 4500);
   };
 
@@ -724,7 +730,7 @@ export const PurchaseReturnsPage: React.FC = () => {
       {/* Toast Feedback */}
       {feedback && (
         <div
-          className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-xl border text-sm font-medium transition-all ${
+          className={`fixed top-5 right-5 z-[9999] flex items-center gap-3 px-4 py-3 rounded-lg shadow-xl border text-sm font-medium transition-all ${
             feedback.type === 'success'
               ? 'bg-emerald-950/90 text-emerald-200 border-emerald-700/60 shadow-emerald-950/40'
               : 'bg-rose-950/90 text-rose-200 border-rose-700/60 shadow-rose-950/40'

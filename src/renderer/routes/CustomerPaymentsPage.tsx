@@ -25,6 +25,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Pagination } from '../components/ui/Pagination';
 import { Combobox, ComboboxOption } from '../components/ui/Combobox';
+import { toast } from '../components/ui/Toast';
 import {
   customerPaymentsApi,
   CustomerPayment,
@@ -196,6 +197,11 @@ export const CustomerPaymentsPage: React.FC = () => {
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
+    if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
     setTimeout(() => setFeedback(null), 4500);
   };
 
@@ -775,7 +781,7 @@ export const CustomerPaymentsPage: React.FC = () => {
       {/* Toast Feedback */}
       {feedback && (
         <div
-          className={`fixed bottom-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg border text-sm font-medium transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 ${
+          className={`fixed bottom-5 right-5 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg border text-sm font-medium transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 ${
             feedback.type === 'success'
               ? 'bg-emerald-950 border-emerald-800 text-emerald-100 shadow-emerald-950/40'
               : 'bg-rose-950 border-rose-800 text-rose-100 shadow-rose-950/40'

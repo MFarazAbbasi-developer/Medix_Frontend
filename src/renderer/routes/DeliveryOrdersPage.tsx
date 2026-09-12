@@ -20,6 +20,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Pagination } from '../components/ui/Pagination';
+import { toast } from '../components/ui/Toast';
 import {
   deliveryOrdersApi,
   DeliveryOrder,
@@ -64,6 +65,11 @@ export const DeliveryOrdersPage: React.FC = () => {
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
+    if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
     setTimeout(() => setFeedback(null), 4500);
   };
 
@@ -389,7 +395,7 @@ export const DeliveryOrdersPage: React.FC = () => {
       {/* Toast Notification */}
       {feedback && (
         <div
-          className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg border transition-all text-xs font-medium animate-in fade-in duration-200 ${
+          className={`fixed top-4 right-4 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg border transition-all text-xs font-medium animate-in fade-in duration-200 ${
             feedback.type === 'success'
               ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
               : 'bg-rose-50 border-rose-200 text-rose-800'

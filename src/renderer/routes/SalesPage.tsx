@@ -29,6 +29,7 @@ import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Modal } from '../components/ui/Modal';
 import { Combobox, ComboboxOption } from '../components/ui/Combobox';
+import { toast } from '../components/ui/Toast';
 import {
   salesApi,
   customersApi,
@@ -188,6 +189,11 @@ export const SalesPage: React.FC = () => {
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
+    if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
     setTimeout(() => setFeedback(null), 4500);
   };
 
@@ -1228,7 +1234,7 @@ export const SalesPage: React.FC = () => {
       {/* Toast Feedback */}
       {feedback && (
         <div
-          className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-3.5 py-2.5 rounded-lg shadow-lg border text-xs font-semibold transition-all ${
+          className={`fixed top-4 right-4 z-[9999] flex items-center gap-2 px-3.5 py-2.5 rounded-lg shadow-lg border text-xs font-semibold transition-all ${
             feedback.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
               : 'bg-rose-50 text-rose-800 border-rose-200'

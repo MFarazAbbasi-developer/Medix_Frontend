@@ -18,6 +18,7 @@ import {
   Unlock,
   RotateCcw,
 } from 'lucide-react';
+import { toast } from '../components/ui/Toast';
 import {
   expiryApi,
   ExpiryMetrics,
@@ -60,6 +61,11 @@ export const ExpiryRecallPage: React.FC = () => {
 
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
+    if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
     setTimeout(() => setNotification(null), 4500);
   };
 
@@ -468,7 +474,7 @@ export const ExpiryRecallPage: React.FC = () => {
       {notification && (
         <div
           className={clsx(
-            'fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all duration-300 border',
+            'fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all duration-300 border',
             notification.type === 'success'
               ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
               : 'bg-rose-50 text-rose-900 border-rose-200',

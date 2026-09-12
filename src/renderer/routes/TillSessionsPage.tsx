@@ -8,6 +8,7 @@ import {
 import { usePermission } from '../hooks/usePermission';
 import { DocumentPrintModal, PrintableTillSession } from '../components/printing';
 import { TillCloseSlipTemplate } from '../components/printing/templates';
+import { toast } from '../components/ui/Toast';
 import {
   Wallet,
   PlusCircle,
@@ -98,6 +99,11 @@ export const TillSessionsPage: React.FC = () => {
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
+    if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
     setTimeout(() => setFeedback(null), 4500);
   };
 
@@ -322,7 +328,7 @@ export const TillSessionsPage: React.FC = () => {
       {/* Toast Feedback */}
       {feedback && (
         <div
-          className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center space-x-2 text-sm font-medium ${
+          className={`fixed top-5 right-5 z-[9999] px-4 py-3 rounded-lg shadow-lg flex items-center space-x-2 text-sm font-medium ${
             feedback.type === 'success'
               ? 'bg-emerald-600 text-white'
               : 'bg-rose-600 text-white'
