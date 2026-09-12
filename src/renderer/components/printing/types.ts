@@ -144,6 +144,10 @@ export interface PrintableSalesReturn {
 export interface PrintablePurchaseReturn {
   returnNumber: string;
   returnDate: string;
+  challanNumber?: string | null;
+  rgaNumber?: string | null;
+  rgaDate?: string | null;
+  vendorCreditNoteNumber?: string | null;
   originalGrnNumber?: string | null;
   originalGrnDate?: string | null;
   supplierDebitNoteNumber?: string | null;
@@ -156,6 +160,48 @@ export interface PrintablePurchaseReturn {
   totalDebitAmount: number;
   reason?: string | null;
   approvedBy?: string | null;
+  footerNotes?: string | null;
+}
+
+export interface PrintableSupplierReturnChallanLine {
+  itemNumber?: number;
+  productName: string;
+  productSku: string;
+  genericName?: string | null;
+  packSize?: string | null;
+  unitSymbol?: string | null;
+  batchNumber: string;
+  expiryDate: string;
+  returnedQuantity: number;
+  bonusReturnedQuantity?: number;
+  totalQuantity: number;
+  stockCondition: string;
+  sourceWarehouseName?: string | null;
+}
+
+export interface PrintableSupplierReturnChallan {
+  challanNumber: string;
+  returnNumber: string;
+  returnDate: string;
+  dispatchedAt?: string | null;
+  rgaNumber?: string | null;
+  rgaDate?: string | null;
+  originalGrnNumber?: string | null;
+  reason?: string | null;
+  status: string;
+  supplier: PrintablePartyInfo;
+  dispatchedByUser?: {
+    displayName: string;
+    username: string;
+  } | null;
+  lines: PrintableSupplierReturnChallanLine[];
+  summary: {
+    totalBilledQuantity: number;
+    totalBonusQuantity: number;
+    totalReturnedQuantity: number;
+    totalLinesCount: number;
+  };
+  notes?: string | null;
   footerNotes?: string | null;
 }
 
@@ -300,3 +346,87 @@ export interface PrintablePdcReceipt {
   }>;
 }
 
+export interface PrintableTillSession {
+  company: PrintableCompanyInfo;
+  branch: {
+    name: string;
+    code: string;
+    city?: string | null;
+    phone?: string | null;
+    address?: string | null;
+  };
+  session: {
+    id?: string;
+    sessionNumber: string;
+    stationName?: string | null;
+    status: string;
+    businessDate?: string | null;
+    openedAt: string;
+    countedAt?: string | null;
+    closedAt?: string | null;
+    cashier: {
+      id?: string;
+      username: string;
+      displayName: string;
+    };
+    closedBy?: {
+      id?: string;
+      username: string;
+      displayName: string;
+    } | null;
+    approvedBy?: {
+      id?: string;
+      username: string;
+      displayName: string;
+    } | string | null;
+    financials: {
+      openingCash: number;
+      cashSalesAmount?: number;
+      cashPaymentsAmount?: number;
+      cashRefundsAmount?: number;
+      cashInAmount?: number;
+      cashOutAmount?: number;
+      expectedCash: number;
+      actualCash?: number;
+      varianceAmount?: number;
+      varianceType?: string;
+      cardSalesAmount?: number;
+      bankSalesAmount?: number;
+      chequeSalesAmount?: number;
+      creditSalesAmount?: number;
+      cashSales?: number;
+      cashCollections?: number;
+      cashIn?: number;
+      cashRefunds?: number;
+      cashOut?: number;
+      countedCash?: number | null;
+      variance?: number | null;
+    };
+    approval?: {
+      varianceReason?: string | null;
+      approvedBy?: string | null;
+      approvedAt?: string | null;
+    };
+    varianceReason?: string | null;
+    notes?: string | null;
+    denominations?: Array<{
+      denominationValue?: number;
+      denomination?: string | number;
+      noteCount?: number;
+      count?: number;
+      totalAmount?: number;
+      amount?: number;
+    }>;
+    movements?: Array<{
+      id?: string;
+      movementType?: string;
+      type?: string;
+      amount: number;
+      reason: string;
+      referenceNo?: string | null;
+      performedBy: string | { id?: string; username: string; displayName: string };
+      createdAt?: string;
+      timestamp?: string;
+    }>;
+  };
+}

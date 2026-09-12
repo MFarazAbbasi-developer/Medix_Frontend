@@ -96,7 +96,7 @@ describe('SalesReturnsPage Component', () => {
       },
     });
 
-    vi.spyOn(salesApiModule, 'getInvoices').mockResolvedValue({
+    const mockInvoicesRes = {
       items: [
         {
           id: 'inv-1',
@@ -113,7 +113,10 @@ describe('SalesReturnsPage Component', () => {
         total: 1,
         totalPages: 1,
       },
-    });
+    };
+
+    vi.spyOn(salesApiModule, 'getInvoices').mockResolvedValue(mockInvoicesRes as any);
+    vi.spyOn(salesApiModule.salesApi, 'getInvoices').mockResolvedValue(mockInvoicesRes as any);
 
     vi.spyOn(warehousesApiModule.warehousesApi, 'getWarehouses').mockResolvedValue([
       {
@@ -198,13 +201,27 @@ describe('SalesReturnsPage Component', () => {
     });
   });
 
-  it('opens record sales return modal and displays invoice selector', async () => {
+  it('opens record sales return modal, loads returnable items, and displays physical disposition options', async () => {
     render(<SalesReturnsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('SRET-00001')).toBeInTheDocument();
+    });
 
     const openBtn = screen.getByText('Record Sales Return');
     fireEvent.click(openBtn);
 
-    expect(screen.getByText('Record Sales Return / Credit Note')).toBeInTheDocument();
-    expect(screen.getByText('Select Sales Invoice')).toBeInTheDocument();
+    expect(await screen.findByText('Record Sales Return / Credit Note')).toBeInTheDocument();
+    const invoiceSelect = await screen.findByDisplayValue('-- Choose Invoice to Return Against --');
+    fireEvent.change(invoiceSelect, { target: { value: 'inv-1' } });
+
+    await waitFor(() => {
+      expect(salesReturnsApi.getReturnableInvoice).toHaveBeenCalledWith('inv-1');
+      expect(screen.getByText('Amoxicillin 500mg')).toBeInTheDocument();
+      expect(screen.getByText('Disposition')).toBeInTheDocument();
+      expect(screen.getByText('Restock Warehouse')).toBeInTheDocument();
+      expect(screen.getByText('RESTOCK SALEABLE (Standard WH)')).toBeInTheDocument();
+    });
   });
 });
+

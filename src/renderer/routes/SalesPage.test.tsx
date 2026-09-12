@@ -7,6 +7,7 @@ import { warehousesApi } from '../api/warehouses.api';
 import { productsApi } from '../api/products.api';
 import { settingsApi } from '../api/settings.api';
 import { salesOperationsApi } from '../api/sales-operations.api';
+import { tillSessionApi } from '../api/till-session.api';
 import { useAuthStore } from '../store/authStore';
 
 const mockHasPermission = vi.fn((_perm: string) => true);
@@ -257,6 +258,19 @@ describe('SalesPage Component - Keyboard Ergonomics & POS Workflow', () => {
         updatedAt: new Date().toISOString(),
       } as any,
     ]);
+
+    vi.spyOn(tillSessionApi, 'getActiveSession').mockResolvedValue({
+      id: 'ts-1',
+      sessionNumber: 'CS-00001',
+      status: 'OPEN',
+      openingCash: 5000,
+    } as any);
+    vi.spyOn(tillSessionApi, 'openSession').mockResolvedValue({
+      id: 'ts-1',
+      sessionNumber: 'CS-00001',
+      status: 'OPEN',
+      openingCash: 5000,
+    } as any);
   });
 
   it('renders POS Terminal interface with customer and warehouse controls', async () => {

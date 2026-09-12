@@ -24,6 +24,7 @@ import {
   CreateSalesReturnDto,
   ReturnReason,
   ReturnedStockCondition,
+  ReturnStockDisposition,
   ReturnRefundMode,
   SalesReturnStatus,
   getInvoices,
@@ -96,6 +97,7 @@ export const SalesReturnsPage: React.FC = () => {
       {
         returnedQuantity: number;
         bonusReturnedQuantity: number;
+        disposition: ReturnStockDisposition;
         stockCondition: ReturnedStockCondition;
         destinationWarehouseId: string;
       }
@@ -202,12 +204,13 @@ export const SalesReturnsPage: React.FC = () => {
         const data = await salesReturnsApi.getReturnableInvoice(selectedInvoiceId);
         setReturnableData(data);
 
-        // Initialize item rows with default destination warehouse & condition
+        // Initialize item rows with default destination warehouse & disposition
         const initialRows: Record<
           string,
           {
             returnedQuantity: number;
             bonusReturnedQuantity: number;
+            disposition: ReturnStockDisposition;
             stockCondition: ReturnedStockCondition;
             destinationWarehouseId: string;
           }
@@ -217,12 +220,14 @@ export const SalesReturnsPage: React.FC = () => {
         const defaultQuarWh = warehouses.find((w) => w.warehouseType === 'QUARANTINE') || warehouses[0];
 
         data.items.forEach((item) => {
-          const condition: ReturnedStockCondition = item.canReturnAsSaleable ? 'SALEABLE' : 'QUARANTINED';
-          const targetWh = condition === 'SALEABLE' ? defaultStdWh?.id : defaultQuarWh?.id;
+          const disposition: ReturnStockDisposition = item.canReturnAsSaleable ? 'RESTOCK_SALEABLE' : 'QUARANTINE';
+          const condition: ReturnedStockCondition = disposition === 'RESTOCK_SALEABLE' ? 'SALEABLE' : 'QUARANTINED';
+          const targetWh = disposition === 'RESTOCK_SALEABLE' ? defaultStdWh?.id : defaultQuarWh?.id;
 
           initialRows[item.id] = {
             returnedQuantity: 0,
             bonusReturnedQuantity: 0,
+            disposition,
             stockCondition: condition,
             destinationWarehouseId: targetWh || '',
           };
@@ -239,10 +244,10 @@ export const SalesReturnsPage: React.FC = () => {
     fetchReturnable();
   }, [selectedInvoiceId, warehouses]);
 
-  // Handle line item condition change (switches default warehouse)
-  const handleConditionChange = (itemId: string, cond: ReturnedStockCondition) => {
+  // Handle line item disposition change (switches default warehouse)
+  const handleDispositionChange = (itemId: string, disp: ReturnStockDisposition) => {
     const targetWhList = warehouses.filter((w) =>
-      cond === 'SALEABLE' ? w.warehouseType === 'STANDARD' : w.warehouseType === 'QUARANTINE',
+      disp === 'RESTOCK_SALEABLE' ? w.warehouseType === 'STANDARD' : w.warehouseType === 'QUARANTINE',
     );
     const defaultWh = targetWhList[0]?.id || '';
 
@@ -250,7 +255,8 @@ export const SalesReturnsPage: React.FC = () => {
       ...prev,
       [itemId]: {
         ...prev[itemId],
-        stockCondition: cond,
+        disposition: disp,
+        stockCondition: disp === 'RESTOCK_SALEABLE' ? 'SALEABLE' : 'QUARANTINED',
         destinationWarehouseId: defaultWh,
       },
     }));
@@ -357,6 +363,7 @@ export const SalesReturnsPage: React.FC = () => {
         salesInvoiceItemId,
         returnedQuantity: row.returnedQuantity,
         bonusReturnedQuantity: row.bonusReturnedQuantity || 0,
+        disposition: row.disposition || (row.stockCondition === 'SALEABLE' ? 'RESTOCK_SALEABLE' : 'QUARANTINE'),
         stockCondition: row.stockCondition,
         destinationWarehouseId: row.destinationWarehouseId,
       }));
@@ -1031,7 +1038,7 @@ export const SalesReturnsPage: React.FC = () => {
                             <th className="py-2.5 px-3 text-center">Available to Return</th>
                             <th className="py-2.5 px-3 text-right w-24">Return Billed</th>
                             <th className="py-2.5 px-3 text-right w-24">Return Bonus</th>
-                            <th className="py-2.5 px-3 w-32">Condition</th>
+                            <th className="py-2.5 px-3 w-44">Disposition</th>
                             <th className="py-2.5 px-3 w-40">Restock Warehouse</th>
                             <th className="py-2.5 px-3 text-right">Line Total</th>
                           </tr>
@@ -1041,12 +1048,13 @@ export const SalesReturnsPage: React.FC = () => {
                             const row = itemRows[item.id] || {
                               returnedQuantity: 0,
                               bonusReturnedQuantity: 0,
-                              stockCondition: 'SALEABLE' as ReturnedStockCondition,
+                              disposition: (item.canReturnAsSaleable ? 'RESTOCK_SALEABLE' : 'QUARANTINE') as ReturnStockDisposition,
+                              stockCondition: (item.canReturnAsSaleable ? 'SALEABLE' : 'QUARANTINED') as ReturnedStockCondition,
                               destinationWarehouseId: '',
                             };
 
                             const availableWarehouses = warehouses.filter((w) =>
-                              row.stockCondition === 'SALEABLE'
+                              row.disposition === 'RESTOCK_SALEABLE'
                                 ? w.warehouseType === 'STANDARD'
                                 : w.warehouseType === 'QUARANTINE',
                             );
@@ -1120,20 +1128,20 @@ export const SalesReturnsPage: React.FC = () => {
 
                                 <td className="py-2.5 px-3">
                                   <select
-                                    value={row.stockCondition}
-                                    disabled={!item.canReturnAsSaleable}
+                                    value={row.disposition || (row.stockCondition === 'SALEABLE' ? 'RESTOCK_SALEABLE' : 'QUARANTINE')}
                                     onChange={(e) =>
-                                      handleConditionChange(
+                                      handleDispositionChange(
                                         item.id,
-                                        e.target.value as ReturnedStockCondition,
+                                        e.target.value as ReturnStockDisposition,
                                       )
                                     }
                                     className="w-full text-[11px] rounded border border-charcoal-300 bg-white py-1 px-1.5 text-charcoal-900 font-medium disabled:bg-surface-muted disabled:text-charcoal-400"
                                   >
                                     {item.canReturnAsSaleable && (
-                                      <option value="SALEABLE">SALEABLE (Resale)</option>
+                                      <option value="RESTOCK_SALEABLE">RESTOCK SALEABLE (Standard WH)</option>
                                     )}
-                                    <option value="QUARANTINED">QUARANTINED</option>
+                                    <option value="QUARANTINE">QUARANTINE (Hold / Testing)</option>
+                                    <option value="RETURN_TO_SUPPLIER">RETURN TO SUPPLIER (Vendor RGA)</option>
                                   </select>
                                 </td>
 

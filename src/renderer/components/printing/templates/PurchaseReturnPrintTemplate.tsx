@@ -102,6 +102,21 @@ export const PurchaseReturnPrintTemplate: React.FC<PurchaseReturnPrintTemplatePr
           <div className="text-gray-600 text-[11px]">
             <strong>Date:</strong> {purchaseReturn.returnDate}
           </div>
+          {purchaseReturn.challanNumber && (
+            <div className="text-gray-600 text-[11px]">
+              <strong>Challan #:</strong> {purchaseReturn.challanNumber}
+            </div>
+          )}
+          {purchaseReturn.rgaNumber && (
+            <div className="text-indigo-950 text-[11px] font-semibold">
+              <strong>Vendor RGA #:</strong> {purchaseReturn.rgaNumber}
+            </div>
+          )}
+          {purchaseReturn.vendorCreditNoteNumber && (
+            <div className="text-gray-700 text-[11px]">
+              <strong>Vendor Credit Note #:</strong> {purchaseReturn.vendorCreditNoteNumber}
+            </div>
+          )}
           {purchaseReturn.originalGrnNumber && (
             <div className="text-gray-600 text-[11px]">
               <strong>Original GRN Ref:</strong> {purchaseReturn.originalGrnNumber}
@@ -122,6 +137,11 @@ export const PurchaseReturnPrintTemplate: React.FC<PurchaseReturnPrintTemplatePr
           {purchaseReturn.supplier.address && (
             <div className="text-gray-600 text-[11px]">
               {purchaseReturn.supplier.address}
+            </div>
+          )}
+          {purchaseReturn.supplier.phone && (
+            <div className="text-gray-600 text-[11px]">
+              Tel: {purchaseReturn.supplier.phone}
             </div>
           )}
         </div>

@@ -29,4 +29,6 @@ export * from './onboarding.api';
 export * from './sales-operations.api';
 export * from './delivery-orders.api';
 export * from './pdc.api';
+export * from './till-session.api';
+export * from './reorder-suggestions.api';
 

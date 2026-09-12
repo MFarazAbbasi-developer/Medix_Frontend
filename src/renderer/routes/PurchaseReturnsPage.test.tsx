@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { PurchaseReturnsPage } from './PurchaseReturnsPage';
 import { purchaseReturnsApi } from '../api/purchase-returns.api';
 import * as purchasingApiModule from '../api/purchasing.api';
+import * as suppliersApiModule from '../api/suppliers.api';
 import * as warehousesApiModule from '../api/warehouses.api';
 import { organizationApi } from '../api/organization.api';
 import { settingsApi } from '../api/settings.api';
@@ -105,9 +107,10 @@ describe('PurchaseReturnsPage Component', () => {
     supplierId: 'sup-1',
     grnId: 'grn-1',
     returnNumber: 'PRET-00001',
+    challanNumber: 'SRCH-00001',
     returnDate: new Date().toISOString(),
-    status: 'POSTED' as const,
-    reason: 'DAMAGED_IN_TRANSIT' as const,
+    status: 'DISPATCHED' as const,
+    reason: 'DAMAGED_GOODS' as const,
     subtotal: 1000,
     discountAmount: 100,
     taxAmount: 45,
@@ -131,7 +134,8 @@ describe('PurchaseReturnsPage Component', () => {
       limit: 20,
       totalPages: 1,
       summary: {
-        totalNetReturn: 945,
+        totalCompletedReturn: 945,
+        totalDispatchedReturn: 0,
       },
     });
 
@@ -140,6 +144,14 @@ describe('PurchaseReturnsPage Component', () => {
       total: 1,
       page: 1,
       limit: 100,
+      totalPages: 1,
+    } as any);
+
+    vi.spyOn(suppliersApiModule.suppliersApi, 'getSuppliers').mockResolvedValue({
+      items: [mockSupplier as any],
+      total: 1,
+      page: 1,
+      limit: 200,
       totalPages: 1,
     } as any);
 
@@ -197,28 +209,58 @@ describe('PurchaseReturnsPage Component', () => {
         },
       ],
     });
+
+    vi.spyOn(purchaseReturnsApi, 'getReturnableBatches').mockResolvedValue([
+      {
+        batchId: 'batch-1',
+        batchNumber: 'BATCH-2026-A',
+        productId: 'prod-1',
+        productName: 'Augmentin 625mg Tablets',
+        productSku: 'AUG-625',
+        genericName: 'Amoxicillin + Clavulanic Acid',
+        unit: 'Box',
+        warehouseId: 'wh-std-1',
+        warehouseName: 'Main Pharma Warehouse',
+        warehouseCode: 'WH-MAIN',
+        warehouseType: 'STANDARD',
+        availableQuantity: 50,
+        purchaseCost: 100,
+        expiryDate: new Date('2027-12-31').toISOString(),
+        isExpired: false,
+        batchStatus: 'ACTIVE',
+      },
+    ]);
   });
 
   it('renders purchase returns workspace with KPIs and register data', async () => {
-    render(<PurchaseReturnsPage />);
+    render(
+      <MemoryRouter>
+        <PurchaseReturnsPage />
+      </MemoryRouter>,
+    );
 
-    expect(screen.getByText('Purchase Returns & Debit Notes')).toBeInTheDocument();
+    expect(screen.getByText('Purchase Returns & Supplier Challans')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(purchaseReturnsApi.getPurchaseReturns).toHaveBeenCalled();
       expect(screen.getByText('PRET-00001')).toBeInTheDocument();
+      expect(screen.getByText('SRCH-00001')).toBeInTheDocument();
       expect(screen.getByText('Getz Pharma Distribution')).toBeInTheDocument();
-      expect(screen.getAllByText('Damaged in Transit').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Damaged Goods').length).toBeGreaterThan(0);
     });
   });
 
   it('opens new purchase return modal and fetches returnable GRN lines', async () => {
-    render(<PurchaseReturnsPage />);
+    render(
+      <MemoryRouter>
+        <PurchaseReturnsPage />
+      </MemoryRouter>,
+    );
 
     const openBtn = screen.getByText('New Purchase Return');
     fireEvent.click(openBtn);
 
-    expect(await screen.findByText('Create Purchase Return & Debit Note')).toBeInTheDocument();
+    expect(await screen.findByText('Create Purchase Return (Draft)')).toBeInTheDocument();
 
     const grnSelect = screen.getByLabelText(/Select Posted GRN/i, { selector: 'select' }) || screen.getByRole('combobox');
     fireEvent.change(grnSelect, { target: { value: 'grn-1' } });
@@ -226,6 +268,25 @@ describe('PurchaseReturnsPage Component', () => {
     await waitFor(() => {
       expect(purchaseReturnsApi.getReturnableGrn).toHaveBeenCalledWith('grn-1');
       expect(screen.getByText('Augmentin 625mg Tablets')).toBeInTheDocument();
+    });
+  });
+
+  it('switches to direct batch mode and loads returnable batches', async () => {
+    render(
+      <MemoryRouter>
+        <PurchaseReturnsPage />
+      </MemoryRouter>,
+    );
+
+    const openBtn = screen.getByText('New Purchase Return');
+    fireEvent.click(openBtn);
+
+    const directTabBtn = screen.getByText('Direct from Warehouse / Batch');
+    fireEvent.click(directTabBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Target Supplier *')).toBeInTheDocument();
+      expect(screen.getByText('Source Warehouse (Filter)')).toBeInTheDocument();
     });
   });
 });

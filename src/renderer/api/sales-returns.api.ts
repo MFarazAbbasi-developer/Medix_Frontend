@@ -15,6 +15,8 @@ export type ReturnReason =
 
 export type ReturnedStockCondition = 'SALEABLE' | 'QUARANTINED';
 
+export type ReturnStockDisposition = 'RESTOCK_SALEABLE' | 'QUARANTINE' | 'RETURN_TO_SUPPLIER';
+
 export type ReturnRefundMode = 'CREDIT_ACCOUNT' | 'CASH_REFUND' | 'BANK_TRANSFER';
 
 export interface SalesReturnItem {
@@ -30,6 +32,7 @@ export interface SalesReturnItem {
   bonusReturnedQuantity: number;
   totalReturnedQuantity: number;
   stockCondition: ReturnedStockCondition;
+  disposition: ReturnStockDisposition;
   unitCost: string | number;
   unitPrice: string | number;
   discountPercentage: string | number;
@@ -150,7 +153,8 @@ export interface CreateSalesReturnItemPayload {
   salesInvoiceItemId: string;
   returnedQuantity: number;
   bonusReturnedQuantity?: number;
-  stockCondition: ReturnedStockCondition;
+  stockCondition?: ReturnedStockCondition;
+  disposition?: ReturnStockDisposition;
   destinationWarehouseId: string;
 }
 

@@ -6,6 +6,7 @@ import {
   Package,
   Layers,
   ShoppingCart,
+  TrendingDown,
   Users,
   Building2,
   BarChart3,
@@ -23,6 +24,7 @@ import {
   UserCheck,
   MapPin,
   Truck,
+  Wallet,
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { clsx } from 'clsx';
@@ -51,6 +53,7 @@ export const AppSidebar: React.FC = () => {
         { to: '/sales', label: 'POS Billing', icon: ShoppingBag },
         { to: '/sales-returns', label: 'Returns', icon: RotateCcw },
         { to: '/payments', label: 'Payments', icon: CreditCard },
+        { to: '/till-sessions', label: 'Till & Cash Close', icon: Wallet },
       ],
     },
     {
@@ -64,6 +67,7 @@ export const AppSidebar: React.FC = () => {
     {
       group: 'Purchasing',
       items: [
+        { to: '/purchase-suggestions', label: 'Purchase Suggestions', icon: TrendingDown },
         { to: '/purchasing', label: 'Receiving & PO', icon: ShoppingCart },
         { to: '/purchase-returns', label: 'Returns', icon: RotateCcw },
         { to: '/supplier-payments', label: 'Payments', icon: CreditCard },

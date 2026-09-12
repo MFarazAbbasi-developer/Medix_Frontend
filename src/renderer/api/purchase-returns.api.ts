@@ -5,23 +5,21 @@ import { ReturnedStockCondition } from './sales-returns.api';
 
 export type { ReturnedStockCondition };
 
-export type PurchaseReturnStatus = 'POSTED' | 'CANCELLED';
+export type PurchaseReturnStatus = 'DRAFT' | 'DISPATCHED' | 'COMPLETED' | 'CANCELLED';
 
 export type PurchaseReturnReason =
-  | 'DAMAGED_IN_TRANSIT'
-  | 'DEFECTIVE'
-  | 'SHORT_EXPIRY'
-  | 'EXPIRED'
-  | 'EXCESS_STOCK'
-  | 'WRONG_ITEM'
-  | 'RECALLED_BATCH'
-  | 'COMMERCIAL_RETURN'
+  | 'DAMAGED_GOODS'
+  | 'DEFECTIVE_BATCH'
+  | 'NEAR_EXPIRY_RECALL'
+  | 'OVER_DELIVERY'
+  | 'WRONG_PRODUCT'
+  | 'REGULATORY_RECALL'
   | 'OTHER';
 
 export interface PurchaseReturnItem {
   id: string;
   purchaseReturnId: string;
-  grnItemId: string;
+  grnItemId?: string | null;
   productId: string;
   batchId: string;
   batchNumber: string;
@@ -43,12 +41,15 @@ export interface PurchaseReturnItem {
     name: string;
     genericName?: string | null;
     packSize?: string | null;
+    unit?: { symbol: string; name: string } | null;
   };
   batch?: {
     id: string;
     batchNumber: string;
     expiryDate: string;
-    status: string;
+    purchaseCost?: string | number;
+    tradePrice?: string | number;
+    retailPrice?: string | number;
   };
   sourceWarehouse?: {
     id: string;
@@ -63,9 +64,15 @@ export interface PurchaseReturn {
   organizationId: string;
   branchId: string;
   supplierId: string;
-  grnId: string;
+  grnId?: string | null;
   returnNumber: string;
+  challanNumber?: string | null;
+  rgaNumber?: string | null;
+  rgaDate?: string | null;
+  vendorCreditNoteNumber?: string | null;
   returnDate: string;
+  dispatchedAt?: string | null;
+  completedAt?: string | null;
   status: PurchaseReturnStatus;
   reason: PurchaseReturnReason;
   subtotal: string | number;
@@ -75,6 +82,8 @@ export interface PurchaseReturn {
   notes?: string | null;
   postedAt: string;
   postedByUserId?: string | null;
+  dispatchedByUserId?: string | null;
+  completedByUserId?: string | null;
   cancelledAt?: string | null;
   cancelledByUserId?: string | null;
   cancellationReason?: string | null;
@@ -92,12 +101,23 @@ export interface PurchaseReturn {
     displayName: string;
     username: string;
   } | null;
+  dispatchedByUser?: {
+    id: string;
+    displayName: string;
+    username: string;
+  } | null;
+  completedByUser?: {
+    id: string;
+    displayName: string;
+    username: string;
+  } | null;
   cancelledByUser?: {
     id: string;
     displayName: string;
     username: string;
   } | null;
   items?: PurchaseReturnItem[];
+  ledgerEntries?: any[];
 }
 
 export interface ReturnableGrnItem {
@@ -144,8 +164,29 @@ export interface ReturnableGrnResponse {
   items: ReturnableGrnItem[];
 }
 
+export interface ReturnableBatchItem {
+  warehouseId: string;
+  warehouseName: string;
+  warehouseCode: string;
+  warehouseType: string;
+  productId: string;
+  productName: string;
+  productSku: string;
+  genericName: string | null;
+  unit: string | null;
+  batchId: string;
+  batchNumber: string;
+  expiryDate: string;
+  isExpired: boolean;
+  batchStatus: string;
+  purchaseCost: number;
+  availableQuantity: number;
+}
+
 export interface CreatePurchaseReturnItemInput {
-  grnItemId: string;
+  grnItemId?: string;
+  productId?: string;
+  batchId?: string;
   sourceWarehouseId: string;
   returnedQuantity: number;
   bonusReturnedQuantity?: number;
@@ -153,7 +194,11 @@ export interface CreatePurchaseReturnItemInput {
 }
 
 export interface CreatePurchaseReturnInput {
-  grnId: string;
+  grnId?: string;
+  supplierId?: string;
+  rgaNumber?: string;
+  rgaDate?: string;
+  vendorCreditNoteNumber?: string;
   reason: PurchaseReturnReason;
   returnDate?: string;
   notes?: string;
@@ -167,12 +212,24 @@ export interface CancelPurchaseReturnInput {
 export interface QueryPurchaseReturnParams {
   search?: string;
   supplierId?: string;
+  grnId?: string;
   status?: PurchaseReturnStatus;
   reason?: PurchaseReturnReason;
   startDate?: string;
   endDate?: string;
   page?: number;
   limit?: number;
+}
+
+export interface DispatchPurchaseReturnInput {
+  rgaNumber?: string;
+  rgaDate?: string;
+  notes?: string;
+}
+
+export interface CompletePurchaseReturnInput {
+  vendorCreditNoteNumber?: string;
+  notes?: string;
 }
 
 export interface PurchaseReturnsListResponse {
@@ -182,7 +239,9 @@ export interface PurchaseReturnsListResponse {
   limit: number;
   totalPages: number;
   summary: {
-    totalNetReturn: number;
+    totalCompletedReturn: number;
+    totalDispatchedReturn: number;
+    totalNetReturn?: number;
   };
 }
 
@@ -202,8 +261,35 @@ export const purchaseReturnsApi = {
     return response.data;
   },
 
+  getReturnableBatches: async (params?: {
+    supplierId?: string;
+    warehouseId?: string;
+    search?: string;
+  }): Promise<ReturnableBatchItem[]> => {
+    const response = await apiClient.get<ReturnableBatchItem[]>('/purchase-returns/returnable-batches', { params });
+    return response.data;
+  },
+
+  getChallan: async (id: string): Promise<PurchaseReturn> => {
+    const response = await apiClient.get<PurchaseReturn>(`/purchase-returns/${id}/challan`);
+    return response.data;
+  },
+
   createPurchaseReturn: async (data: CreatePurchaseReturnInput): Promise<PurchaseReturn> => {
     const response = await apiClient.post<PurchaseReturn>('/purchase-returns', data);
+    return response.data;
+  },
+
+  dispatchPurchaseReturn: async (id: string, data?: DispatchPurchaseReturnInput): Promise<PurchaseReturn> => {
+    const response = await apiClient.post<PurchaseReturn>(`/purchase-returns/${id}/dispatch`, data || {});
+    return response.data;
+  },
+
+  completePurchaseReturn: async (
+    id: string,
+    data?: CompletePurchaseReturnInput,
+  ): Promise<PurchaseReturn> => {
+    const response = await apiClient.post<PurchaseReturn>(`/purchase-returns/${id}/complete`, data || {});
     return response.data;
   },
 

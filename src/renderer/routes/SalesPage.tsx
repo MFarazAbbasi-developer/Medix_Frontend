@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   UserCheck,
   MapPin,
+  Wallet,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -37,6 +38,8 @@ import {
   settingsApi,
   organizationApi,
   salesOperationsApi,
+  tillSessionApi,
+  TillSession,
   Customer,
   CustomerDeliveryAddress,
   Warehouse,
@@ -142,6 +145,13 @@ export const SalesPage: React.FC = () => {
 
   const [isPosting, setIsPosting] = useState<boolean>(false);
 
+  // Till Session & POS Quick-Open State
+  const [activeTillSession, setActiveTillSession] = useState<TillSession | null>(null);
+  const [isQuickOpenTillModalOpen, setIsQuickOpenTillModalOpen] = useState<boolean>(false);
+  const [quickOpeningCash, setQuickOpeningCash] = useState<string>('0');
+  const [quickOpenNotes, setQuickOpenNotes] = useState<string>('');
+  const [isSubmittingQuickOpen, setIsSubmittingQuickOpen] = useState<boolean>(false);
+
   // Batch Picker Modal state
   const [batchPickerItem, setBatchPickerItem] = useState<CartItem | null>(null);
   const [batchPickerOptions, setBatchPickerOptions] = useState<FefoPreviewResponse | null>(null);
@@ -202,7 +212,7 @@ export const SalesPage: React.FC = () => {
   // Load master data
   const loadMasterData = useCallback(async () => {
     try {
-      const [custRes, whData, prodRes, settingsRes, orgRes, smRes, rtRes] = await Promise.all([
+      const [custRes, whData, prodRes, settingsRes, orgRes, smRes, rtRes, activeSessionRes] = await Promise.all([
         customersApi.getCustomers({ isActive: true, limit: 100 }),
         warehousesApi.getWarehouses(),
         productsApi.getProducts({ limit: 50, isActive: 'true' }),
@@ -210,7 +220,12 @@ export const SalesPage: React.FC = () => {
         organizationApi.getOrganization().catch(() => null),
         salesOperationsApi.getSalesmen({ isActive: true, limit: 500 }).catch(() => ({ items: [] })),
         salesOperationsApi.getRoutes({ isActive: true, limit: 500 }).catch(() => ({ items: [] })),
+        tillSessionApi.getActiveSession().catch(() => null),
       ]);
+
+      if (activeSessionRes) {
+        setActiveTillSession(activeSessionRes);
+      }
 
       const custList = custRes?.items || [];
       setCustomers(custList);
@@ -278,6 +293,43 @@ export const SalesPage: React.FC = () => {
       // ignore
     }
   }, []);
+
+  // Fetch / Refresh active till session
+  const fetchActiveTill = useCallback(async () => {
+    try {
+      const session = await tillSessionApi.getActiveSession();
+      setActiveTillSession(session);
+      return session;
+    } catch {
+      setActiveTillSession(null);
+      return null;
+    }
+  }, []);
+
+  // Handle Quick Open Till Session from POS
+  const handleQuickOpenTill = async () => {
+    const openingAmt = parseFloat(quickOpeningCash);
+    if (isNaN(openingAmt) || openingAmt < 0) {
+      showFeedback('error', 'Please enter a valid positive opening cash amount.');
+      return;
+    }
+    setIsSubmittingQuickOpen(true);
+    try {
+      const newSession = await tillSessionApi.openSession({
+        openingCash: openingAmt,
+        notes: quickOpenNotes.trim() || undefined,
+      });
+      setActiveTillSession(newSession);
+      setIsQuickOpenTillModalOpen(false);
+      setQuickOpeningCash('0');
+      setQuickOpenNotes('');
+      showFeedback('success', `Cash Till Session ${newSession.sessionNumber} opened successfully.`);
+    } catch (err: any) {
+      showFeedback('error', err?.response?.data?.message || err?.message || 'Failed to open till session.');
+    } finally {
+      setIsSubmittingQuickOpen(false);
+    }
+  };
 
   // Customer change handler
   const handleCustomerChange = useCallback(
@@ -850,6 +902,17 @@ export const SalesPage: React.FC = () => {
       return;
     }
 
+    if (!isParkDraft) {
+      const hasCashTender =
+        paymentMode === 'CASH' ||
+        (paymentMode === 'SPLIT' && splitTenders.some((t) => t.paymentMethod === 'CASH'));
+      if (hasCashTender && !activeTillSession) {
+        setIsQuickOpenTillModalOpen(true);
+        showFeedback('error', 'A cash till session must be OPEN to process cash transactions.');
+        return;
+      }
+    }
+
     setIsPosting(true);
     try {
       let paymentsPayload: Array<{
@@ -955,6 +1018,7 @@ export const SalesPage: React.FC = () => {
       }
 
       loadMasterData();
+      fetchActiveTill();
       loadInvoices();
       setTimeout(focusProductSearch, 50);
     } catch (err: any) {
@@ -1283,6 +1347,27 @@ export const SalesPage: React.FC = () => {
 
         {/* Right Tab Controls & Parked Drafts Indicator */}
         <div className="flex items-center gap-2">
+          {activeTillSession ? (
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold"
+              title={`Active Till: ${activeTillSession.sessionNumber}`}
+            >
+              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <Wallet className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Till: {activeTillSession.sessionNumber}</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsQuickOpenTillModalOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold hover:bg-amber-100 transition-colors"
+              title="No active till session. Click to open."
+            >
+              <div className="h-2 w-2 rounded-full bg-amber-500" />
+              <Wallet className="h-3.5 w-3.5 text-amber-600" />
+              <span>No Till (Open)</span>
+            </button>
+          )}
+
           {parkedDraftsCount > 0 && (
             <button
               onClick={() => setActiveTab('INVOICES')}
@@ -1987,7 +2072,11 @@ export const SalesPage: React.FC = () => {
                     onClick={() => {
                       setPaymentMode(item.method as any);
                       if (item.method === 'CASH') {
-                        setTimeout(() => tenderCashInputRef.current?.focus(), 50);
+                        if (!activeTillSession) {
+                          setIsQuickOpenTillModalOpen(true);
+                        } else {
+                          setTimeout(() => tenderCashInputRef.current?.focus(), 50);
+                        }
                       }
                     }}
                     className={clsx(
@@ -2008,6 +2097,26 @@ export const SalesPage: React.FC = () => {
           {/* MODE 1: CASH PAYMENT */}
           {paymentMode === 'CASH' && (
             <div className="space-y-3 bg-surface-muted/40 p-3.5 rounded-lg border border-surface-border">
+              {!activeTillSession && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/90 p-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-amber-900">No Open Till Session</p>
+                      <p className="text-[11px] text-amber-700">Open a till session with float to accept cash transactions.</p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-2.5 py-1"
+                    onClick={() => setIsQuickOpenTillModalOpen(true)}
+                  >
+                    <Wallet className="h-3.5 w-3.5 mr-1" />
+                    Open Till
+                  </Button>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-bold text-charcoal-800 mb-1">
                   Cash Tendered by Customer (PKR)
@@ -2809,6 +2918,74 @@ export const SalesPage: React.FC = () => {
           }}
         </DocumentPrintModal>
       )}
+
+      {/* MODAL: POS Quick Open Till Modal */}
+      <Modal
+        isOpen={isQuickOpenTillModalOpen}
+        onClose={() => setIsQuickOpenTillModalOpen(false)}
+        title="Open Till Session (Cash Drawer)"
+        size="sm"
+      >
+        <div className="space-y-3 text-xs">
+          <p className="text-charcoal-600">
+            Enter the verified physical cash float handed over to this workstation drawer to start accepting cash payments.
+          </p>
+
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+              Opening Cash Float (PKR) *
+            </label>
+            <Input
+              type="number"
+              min="0"
+              step="any"
+              required
+              autoFocus
+              value={quickOpeningCash}
+              onChange={(e) => setQuickOpeningCash(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleQuickOpenTill();
+                }
+              }}
+              className="font-mono text-sm font-bold text-charcoal-900"
+              placeholder="0.00"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+              Session Notes (Optional)
+            </label>
+            <Input
+              type="text"
+              value={quickOpenNotes}
+              onChange={(e) => setQuickOpenNotes(e.target.value)}
+              placeholder="e.g. Morning Shift - Counter 1"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-surface-border">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsQuickOpenTillModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleQuickOpenTill}
+              disabled={isSubmittingQuickOpen}
+              className="bg-brand-600 hover:bg-brand-700 text-white font-bold"
+            >
+              {isSubmittingQuickOpen ? 'Opening...' : 'Open Till Session (Enter)'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

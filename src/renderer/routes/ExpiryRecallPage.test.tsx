@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { ExpiryRecallPage } from './ExpiryRecallPage';
 import { expiryApi, warehousesApi, productsApi, masterDataApi, batchesApi } from '../api';
 import { useAuthStore } from '../store/authStore';
@@ -245,7 +246,11 @@ describe('ExpiryRecallPage Component', () => {
   });
 
   it('renders Expiry Management workspace with summary metrics cards and batch aging table', async () => {
-    render(<ExpiryRecallPage />);
+    render(
+      <MemoryRouter>
+        <ExpiryRecallPage />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText('Expiry Management & Recall Operations')).toBeDefined();
 
@@ -257,7 +262,11 @@ describe('ExpiryRecallPage Component', () => {
   });
 
   it('switches to Quarantine Operations tab and shows quarantined stock', async () => {
-    render(<ExpiryRecallPage />);
+    render(
+      <MemoryRouter>
+        <ExpiryRecallPage />
+      </MemoryRouter>,
+    );
 
     const quarantineTabBtn = screen.getByRole('button', { name: /Quarantine Operations/i });
     fireEvent.click(quarantineTabBtn);
@@ -271,7 +280,11 @@ describe('ExpiryRecallPage Component', () => {
   });
 
   it('switches to Product Recalls tab and shows recalls register', async () => {
-    render(<ExpiryRecallPage />);
+    render(
+      <MemoryRouter>
+        <ExpiryRecallPage />
+      </MemoryRouter>,
+    );
 
     const recallsTabBtn = screen.getByRole('button', { name: /Product Recalls/i });
     fireEvent.click(recallsTabBtn);
@@ -285,7 +298,11 @@ describe('ExpiryRecallPage Component', () => {
   it('opens Quarantine Stock modal and triggers move API', async () => {
     vi.mocked(expiryApi.moveStockToQuarantine).mockResolvedValue({ success: true } as any);
 
-    render(<ExpiryRecallPage />);
+    render(
+      <MemoryRouter>
+        <ExpiryRecallPage />
+      </MemoryRouter>,
+    );
 
     const quarantineTabBtn = screen.getByRole('button', { name: /Quarantine Operations/i });
     fireEvent.click(quarantineTabBtn);

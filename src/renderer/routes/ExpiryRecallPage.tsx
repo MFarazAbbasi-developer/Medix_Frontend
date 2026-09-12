@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   ShieldAlert,
@@ -15,6 +16,7 @@ import {
   X,
   Lock,
   Unlock,
+  RotateCcw,
 } from 'lucide-react';
 import {
   expiryApi,
@@ -35,6 +37,7 @@ import { useAuthStore } from '../store/authStore';
 import { clsx } from 'clsx';
 
 export const ExpiryRecallPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const isAdmin = user?.roles?.includes('ADMIN');
   const canManageQuarantine = isAdmin || user?.permissions?.includes('quarantine.manage');
@@ -900,6 +903,18 @@ export const ExpiryRecallPage: React.FC = () => {
                                 <span>Quarantine</span>
                               </button>
                             )}
+                            <button
+                              onClick={() =>
+                                navigate('/purchase-returns', {
+                                  state: { initiateBatchId: b.id },
+                                })
+                              }
+                              className="px-2 py-1 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-300 hover:bg-indigo-100 flex items-center gap-1"
+                              title="Initiate Purchase Return to Supplier"
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                              <span>Return to Supplier</span>
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1054,28 +1069,45 @@ export const ExpiryRecallPage: React.FC = () => {
                             {new Date(item.latestMovementDate).toLocaleDateString()}
                           </td>
                           <td className="py-2.5 px-3 text-center">
-                            {canManageQuarantine && (
+                            <div className="flex items-center justify-center gap-1.5">
+                              {canManageQuarantine && (
+                                <button
+                                  onClick={() => handleOpenReleaseModal(item)}
+                                  disabled={!canRelease}
+                                  className={clsx(
+                                    'px-2 py-1 rounded text-[11px] font-semibold flex items-center gap-1',
+                                    canRelease
+                                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
+                                      : 'bg-slate-100 text-charcoal-400 border border-slate-200 cursor-not-allowed',
+                                  )}
+                                  title={
+                                    !canRelease
+                                      ? item.isExpired
+                                        ? 'Cannot release expired stock'
+                                        : 'Cannot release recalled stock'
+                                      : 'Release to Standard Saleable Inventory'
+                                  }
+                                >
+                                  <Unlock className="h-3 w-3" />
+                                  <span>Release</span>
+                                </button>
+                              )}
                               <button
-                                onClick={() => handleOpenReleaseModal(item)}
-                                disabled={!canRelease}
-                                className={clsx(
-                                  'px-2 py-1 rounded text-[11px] font-semibold flex items-center gap-1 mx-auto',
-                                  canRelease
-                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
-                                    : 'bg-slate-100 text-charcoal-400 border border-slate-200 cursor-not-allowed',
-                                )}
-                                title={
-                                  !canRelease
-                                    ? item.isExpired
-                                      ? 'Cannot release expired stock'
-                                      : 'Cannot release recalled stock'
-                                    : 'Release to Standard Saleable Inventory'
+                                onClick={() =>
+                                  navigate('/purchase-returns', {
+                                    state: {
+                                      initiateBatchId: item.batchId,
+                                      initiateWarehouseId: item.warehouseId,
+                                    },
+                                  })
                                 }
+                                className="px-2 py-1 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-300 hover:bg-indigo-100 flex items-center gap-1"
+                                title="Initiate Purchase Return to Supplier"
                               >
-                                <Unlock className="h-3 w-3" />
-                                <span>Release</span>
+                                <RotateCcw className="h-3 w-3" />
+                                <span>Return to Supplier</span>
                               </button>
-                            )}
+                            </div>
                           </td>
                         </tr>
                       );

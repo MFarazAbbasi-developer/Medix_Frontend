@@ -6,3 +6,5 @@ export * from './CustomerPaymentReceiptTemplate';
 export * from './SupplierPaymentVoucherTemplate';
 export * from './DeliveryChallanPrintTemplate';
 export * from './PdcReceiptTemplate';
+export * from './TillCloseSlipTemplate';
+export * from './SupplierReturnChallanPrintTemplate';
