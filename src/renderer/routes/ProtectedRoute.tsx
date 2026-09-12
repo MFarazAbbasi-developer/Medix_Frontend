@@ -6,7 +6,7 @@ export const ProtectedRoute: React.FC = () => {
   const { authStatus, user } = useAuthStore();
   const location = useLocation();
 
-  if (authStatus === 'checking') {
+  if (authStatus === 'checking' || authStatus === 'idle') {
     return (
       <div className="min-h-screen w-screen flex flex-col items-center justify-center bg-surface-base select-none">
         <div className="flex flex-col items-center gap-3">
