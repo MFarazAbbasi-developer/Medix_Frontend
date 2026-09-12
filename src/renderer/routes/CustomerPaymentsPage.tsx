@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   CreditCard,
   Search,
@@ -23,6 +23,8 @@ import {
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { Pagination } from '../components/ui/Pagination';
+import { Combobox, ComboboxOption } from '../components/ui/Combobox';
 import {
   customerPaymentsApi,
   CustomerPayment,
@@ -197,12 +199,37 @@ export const CustomerPaymentsPage: React.FC = () => {
     setTimeout(() => setFeedback(null), 4500);
   };
 
+  // Customer Combobox options & debounced search
+  const customerOptions: ComboboxOption[] = useMemo(() => {
+    return customers.map((c) => ({
+      value: c.id,
+      label: `${c.name} (${c.code})`,
+      sublabel: `${c.city ? `${c.city} • ` : ''}Balance: Rs. ${Number(c.currentBalance).toFixed(2)}`,
+    }));
+  }, [customers]);
+
+  const handleCustomerSearch = useCallback(async (query: string) => {
+    if (!query || !query.trim()) return;
+    try {
+      const res = await getCustomers({ search: query.trim(), limit: 50, isActive: true });
+      if (res?.items) {
+        setCustomers((prev) => {
+          const existingIds = new Set(prev.map((c) => c.id));
+          const newItems = res.items.filter((c) => !existingIds.has(c.id));
+          return [...prev, ...newItems];
+        });
+      }
+    } catch {
+      // Silently ignore
+    }
+  }, []);
+
   // Load Customers & Aux Data
   useEffect(() => {
     const fetchAuxData = async () => {
       try {
         const [res, orgRes, settingsRes] = await Promise.all([
-          getCustomers({ limit: 100, isActive: true }),
+          getCustomers({ limit: 50, isActive: true }),
           organizationApi.getOrganization().catch(() => null),
           settingsApi.getSettings().catch(() => ({ items: [], map: {} })),
         ]);
@@ -1102,29 +1129,14 @@ export const CustomerPaymentsPage: React.FC = () => {
 
             {/* Regular Pagination */}
             {totalPages > 1 && (
-              <div className="p-3 border-t border-surface-border flex items-center justify-between text-xs text-charcoal-600">
-                <span>Page {currentPage} of {totalPages}</span>
-                <div className="flex gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    className="h-7 px-2.5 text-xs"
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    className="h-7 px-2.5 text-xs"
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalRecords}
+                pageSize={20}
+                onPageChange={setCurrentPage}
+                showPageSizeSelector={false}
+              />
             )}
           </Card>
         </>
@@ -1541,29 +1553,12 @@ export const CustomerPaymentsPage: React.FC = () => {
 
             {/* PDC Pagination */}
             {pdcTotalPages > 1 && (
-              <div className="p-3 border-t border-surface-border flex items-center justify-between text-xs text-charcoal-600">
-                <span>Page {pdcCurrentPage} of {pdcTotalPages}</span>
-                <div className="flex gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={pdcCurrentPage <= 1}
-                    onClick={() => setPdcCurrentPage((p) => Math.max(1, p - 1))}
-                    className="h-7 px-2.5 text-xs"
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={pdcCurrentPage >= pdcTotalPages}
-                    onClick={() => setPdcCurrentPage((p) => Math.min(pdcTotalPages, p + 1))}
-                    className="h-7 px-2.5 text-xs"
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+              <Pagination
+                currentPage={pdcCurrentPage}
+                totalPages={pdcTotalPages}
+                onPageChange={setPdcCurrentPage}
+                showPageSizeSelector={false}
+              />
             )}
           </Card>
         </>
@@ -1603,19 +1598,14 @@ export const CustomerPaymentsPage: React.FC = () => {
                 <label className="block text-xs font-semibold text-charcoal-800 mb-1">
                   Customer / Drawer <span className="text-rose-500">*</span>
                 </label>
-                <select
+                <Combobox
+                  options={customerOptions}
                   value={pdcCustomerId}
-                  onChange={(e) => setPdcCustomerId(e.target.value)}
-                  className="w-full text-xs h-9 rounded-md border border-surface-border bg-white px-3 py-1 text-charcoal-900 focus:ring-1 focus:ring-indigo-500"
-                  required
-                >
-                  <option value="">Select customer...</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.code}) {c.city ? `— ${c.city}` : ''} [Balance: Rs. {Number(c.currentBalance).toFixed(2)}]
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setPdcCustomerId(val)}
+                  onSearchChange={handleCustomerSearch}
+                  placeholder="Search and choose customer / drawer..."
+                  className="w-full text-xs"
+                />
                 {pdcCustomerObj && (
                   <div className="mt-1 flex items-center gap-4 text-[11px] text-charcoal-500">
                     <span>Outstanding Receivable: <strong className="text-charcoal-900 font-mono">Rs. {Number(pdcCustomerObj.currentBalance).toFixed(2)}</strong></span>
@@ -2305,19 +2295,14 @@ export const CustomerPaymentsPage: React.FC = () => {
                 <label className="block text-xs font-semibold text-charcoal-800 mb-1">
                   Customer <span className="text-rose-500">*</span>
                 </label>
-                <select
+                <Combobox
+                  options={customerOptions}
                   value={selectedCustomerId}
-                  onChange={(e) => setSelectedCustomerId(e.target.value)}
-                  className="w-full text-xs h-9 rounded-md border border-surface-border bg-white px-3 py-1 text-charcoal-900 focus:ring-1 focus:ring-brand-500"
-                  required
-                >
-                  <option value="">Select customer...</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.code}) {c.city ? `— ${c.city}` : ''} [Balance: Rs. {Number(c.currentBalance).toFixed(2)}]
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedCustomerId(val)}
+                  onSearchChange={handleCustomerSearch}
+                  placeholder="Search and choose customer..."
+                  className="w-full text-xs"
+                />
                 {selectedCustomer && (
                   <div className="mt-1 flex items-center gap-4 text-[11px] text-charcoal-500">
                     <span>Current Balance: <strong className="text-charcoal-900 font-mono">Rs. {Number(selectedCustomer.currentBalance).toFixed(2)}</strong></span>

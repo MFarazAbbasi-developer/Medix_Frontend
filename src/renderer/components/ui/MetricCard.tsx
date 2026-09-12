@@ -29,20 +29,20 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 }) => {
   const statusIconBg: Record<string, string> = {
     neutral: 'bg-surface-muted text-charcoal-600',
-    success: 'bg-emerald-50 text-emerald-700',
-    warning: 'bg-amber-50 text-amber-700',
-    error: 'bg-red-50 text-red-700',
+    success: 'bg-status-success-bg text-status-success-text',
+    warning: 'bg-status-warning-bg text-status-warning-text',
+    error: 'bg-status-error-bg text-status-error-text',
     brand: 'bg-brand-50 text-brand-700',
-    info: 'bg-blue-50 text-blue-700',
+    info: 'bg-status-info-bg text-status-info-text',
   };
 
   const badgeStyles: Record<string, string> = {
     neutral: 'bg-surface-muted text-charcoal-700 border-surface-border',
-    success: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-    warning: 'bg-amber-50 text-amber-800 border-amber-200',
-    error: 'bg-red-50 text-red-800 border-red-200',
-    brand: 'bg-brand-50 text-brand-800 border-brand-200',
-    info: 'bg-blue-50 text-blue-800 border-blue-200',
+    success: 'bg-status-success-bg text-status-success-text border-status-success-border',
+    warning: 'bg-status-warning-bg text-status-warning-text border-status-warning-border',
+    error: 'bg-status-error-bg text-status-error-text border-status-error-border',
+    brand: 'bg-brand-50 text-brand-700 border-brand-200',
+    info: 'bg-status-info-bg text-status-info-text border-status-info-border',
   };
 
   return (
@@ -50,7 +50,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
       onClick={onClick}
       className={twMerge(
         clsx(
-          'rounded border border-surface-border bg-surface-card p-3 shadow-xs transition-colors',
+          'rounded border border-surface-border bg-surface-card p-3 shadow-2xs transition-colors',
           onClick && 'cursor-pointer hover:border-surface-borderStrong hover:bg-surface-muted/30',
           className,
         ),

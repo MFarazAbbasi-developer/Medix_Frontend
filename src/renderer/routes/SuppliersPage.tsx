@@ -17,6 +17,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { Pagination } from '../components/ui/Pagination';
 import {
   getSuppliers,
   createSupplier,
@@ -33,6 +34,9 @@ export const SuppliersPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalRecords, setTotalRecords] = useState<number>(0);
 
   // Feedback toast
   const [feedback, setFeedback] = useState<{
@@ -81,15 +85,18 @@ export const SuppliersPage: React.FC = () => {
       const res = await getSuppliers({
         search: search.trim() || undefined,
         isActive: statusFilter === 'ALL' ? undefined : statusFilter === 'ACTIVE',
-        limit: 100,
+        page: currentPage,
+        limit: 20,
       });
       setSuppliers(res?.items || []);
+      setTotalRecords(res?.meta?.total || 0);
+      setTotalPages(res?.meta?.totalPages || 1);
     } catch (err: any) {
       showFeedback('error', err.response?.data?.message || err.message || 'Failed to load suppliers');
     } finally {
       setIsLoading(false);
     }
-  }, [search, statusFilter]);
+  }, [search, statusFilter, currentPage]);
 
   useEffect(() => {
     loadSuppliers();
@@ -340,7 +347,10 @@ export const SuppliersPage: React.FC = () => {
           <Input
             placeholder="Search by name, code, phone, NTN, city..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             className="pl-8 text-xs h-9"
           />
         </div>
@@ -349,7 +359,10 @@ export const SuppliersPage: React.FC = () => {
           <span className="text-xs text-charcoal-500 font-medium">Status:</span>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as any);
+              setCurrentPage(1);
+            }}
             className="h-9 px-3 text-xs border border-surface-border rounded bg-white text-charcoal-700 focus:outline-none focus:border-brand-500"
           >
             <option value="ALL">All Statuses</option>
@@ -471,6 +484,18 @@ export const SuppliersPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Footer */}
+        {totalPages > 1 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalRecords}
+            pageSize={20}
+            onPageChange={setCurrentPage}
+            showPageSizeSelector={false}
+          />
+        )}
       </Card>
 
       {/* Add / Edit Supplier Modal */}

@@ -49,22 +49,22 @@ export const Tabs: React.FC<TabsProps> = ({
   };
 
   const badgeVariants: Record<string, string> = {
-    neutral: 'bg-surface-muted text-charcoal-700',
-    success: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-    warning: 'bg-amber-50 text-amber-800 border-amber-200',
-    error: 'bg-red-50 text-red-800 border-red-200',
-    brand: 'bg-brand-50 text-brand-800 border-brand-200',
+    neutral: 'bg-surface-muted text-charcoal-700 border-surface-border',
+    success: 'bg-status-success-bg text-status-success-text border-status-success-border',
+    warning: 'bg-status-warning-bg text-status-warning-text border-status-warning-border',
+    error: 'bg-status-error-bg text-status-error-text border-status-error-border',
+    brand: 'bg-brand-50 text-brand-700 border-brand-200',
   };
 
   const getContainerStyles = () => {
     switch (variant) {
       case 'pills':
-        return 'flex items-center gap-1.5 p-1 bg-surface-muted rounded-md border border-surface-border';
+        return 'flex items-center gap-1.5 p-1 bg-surface-muted rounded border border-surface-border';
       case 'underline':
         return 'flex items-center gap-4 border-b border-surface-border';
       case 'boxed':
       default:
-        return 'flex items-center gap-1 p-1 bg-surface-muted/70 rounded border border-surface-border';
+        return 'flex items-center gap-1 p-1 bg-surface-muted/80 rounded border border-surface-border';
     }
   };
 
@@ -99,7 +99,7 @@ export const Tabs: React.FC<TabsProps> = ({
           sizeStyles,
           'rounded font-medium transition-all select-none',
           isActive
-            ? 'bg-white text-brand-700 font-semibold shadow-xs border border-surface-border/80'
+            ? 'bg-white text-brand-700 font-semibold shadow-2xs border border-surface-border'
             : 'text-charcoal-600 hover:text-charcoal-900 hover:bg-white/40 border border-transparent',
         );
     }

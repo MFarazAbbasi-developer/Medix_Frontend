@@ -198,10 +198,10 @@ export const OnboardingPage: React.FC = () => {
 
       {/* Messages */}
       {successMessage && (
-        <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start gap-2 shadow-sm">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+        <div className="p-4 rounded-lg bg-status-success-bg border border-status-success-border text-status-success-text text-xs flex items-start gap-2 shadow-xs">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-status-success-dot mt-0.5" />
           <div className="flex-1 font-medium">{successMessage}</div>
-          <button onClick={() => setSuccessMessage(null)} className="text-emerald-700 hover:text-emerald-900">
+          <button onClick={() => setSuccessMessage(null)} className="text-status-success-text/70 hover:text-status-success-text">
             ×
           </button>
         </div>

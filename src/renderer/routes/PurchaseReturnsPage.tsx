@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   RotateCcw,
@@ -21,6 +21,8 @@ import {
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { Pagination } from '../components/ui/Pagination';
+import { Combobox, ComboboxOption } from '../components/ui/Combobox';
 import {
   purchaseReturnsApi,
   PurchaseReturn,
@@ -201,12 +203,62 @@ export const PurchaseReturnsPage: React.FC = () => {
     loadReturns();
   }, [loadReturns]);
 
+  // Combobox options & debounced server searches
+  const grnOptions: ComboboxOption[] = useMemo(() => {
+    return grns.map((g) => ({
+      value: g.id,
+      label: `${g.grnNumber} — ${g.supplier?.name || 'Supplier'}`,
+      sublabel: `Rs. ${Number(g.netTotal).toLocaleString()} • Rec: ${new Date(g.receivedDate).toLocaleDateString()}`,
+    }));
+  }, [grns]);
+
+  const supplierOptions: ComboboxOption[] = useMemo(() => {
+    return suppliers.map((s) => ({
+      value: s.id,
+      label: `${s.name} (${s.code})`,
+      sublabel: s.city ? `City: ${s.city}` : undefined,
+    }));
+  }, [suppliers]);
+
+  const handleGrnSearch = useCallback(async (query: string) => {
+    if (!query || !query.trim()) return;
+    try {
+      const res = await purchasingApi.getGoodsReceiveNotes({ search: query.trim(), status: 'POSTED', limit: 50 });
+      const items = (res as any)?.items || (Array.isArray(res) ? res : []);
+      if (items.length > 0) {
+        setGrns((prev) => {
+          const existingIds = new Set(prev.map((g) => g.id));
+          const newItems = items.filter((g: GoodsReceiveNote) => !existingIds.has(g.id));
+          return [...prev, ...newItems];
+        });
+      }
+    } catch {
+      // Silently ignore
+    }
+  }, []);
+
+  const handleSupplierSearch = useCallback(async (query: string) => {
+    if (!query || !query.trim()) return;
+    try {
+      const res = await suppliersApi.getSuppliers({ search: query.trim(), isActive: true, limit: 50 });
+      if (res?.items) {
+        setSuppliers((prev) => {
+          const existingIds = new Set(prev.map((s) => s.id));
+          const newItems = res.items.filter((s) => !existingIds.has(s.id));
+          return [...prev, ...newItems];
+        });
+      }
+    } catch {
+      // Silently ignore
+    }
+  }, []);
+
   useEffect(() => {
     const fetchDirectories = async () => {
       try {
         const [grnRes, supRes, whRes, orgRes, setRes] = await Promise.all([
-          purchasingApi.getGoodsReceiveNotes({ status: 'POSTED', limit: 100 }),
-          suppliersApi.getSuppliers({ isActive: true, limit: 200 }).catch(() => ({ items: [] })),
+          purchasingApi.getGoodsReceiveNotes({ status: 'POSTED', limit: 50 }),
+          suppliersApi.getSuppliers({ isActive: true, limit: 50 }).catch(() => ({ items: [] })),
           warehousesApi.getWarehouses(),
           organizationApi.getOrganization().catch(() => null),
           settingsApi.getSettings().catch(() => null),
@@ -1021,29 +1073,14 @@ export const PurchaseReturnsPage: React.FC = () => {
 
         {/* Pagination Bar */}
         {totalPages > 1 && (
-          <div className="p-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-            <span>
-              Showing page {currentPage} of {totalPages} ({totalRecords} total returns)
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalRecords}
+            pageSize={20}
+            onPageChange={setCurrentPage}
+            showPageSizeSelector={false}
+          />
         )}
       </Card>
 
@@ -1107,41 +1144,31 @@ export const PurchaseReturnsPage: React.FC = () => {
                     <label htmlFor="select-grn-input" className="text-xs font-semibold uppercase text-slate-300">
                       Select Posted GRN *
                     </label>
-                    <select
+                    <Combobox
                       id="select-grn-input"
-                      aria-label="Select Posted GRN"
+                      options={grnOptions}
                       value={selectedGrnId}
-                      onChange={(e) => setSelectedGrnId(e.target.value)}
-                      required
-                      className="w-full h-10 px-3 rounded-md bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-indigo-500"
-                    >
-                      <option value="">-- Choose Posted GRN --</option>
-                      {grns.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.grnNumber} - {g.supplier?.name} (Rs. {Number(g.netTotal).toLocaleString()})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setSelectedGrnId(val)}
+                      onSearchChange={handleGrnSearch}
+                      placeholder="Search and choose posted GRN (GRN #, supplier)..."
+                      className="w-full text-xs"
+                    />
                   </div>
                 ) : (
                   <>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold uppercase text-slate-300">
+                      <label htmlFor="target-supplier-input" className="text-xs font-semibold uppercase text-slate-300">
                         Target Supplier *
                       </label>
-                      <select
+                      <Combobox
+                        id="target-supplier-input"
+                        options={supplierOptions}
                         value={selectedSupplierId}
-                        onChange={(e) => setSelectedSupplierId(e.target.value)}
-                        required
-                        className="w-full h-10 px-3 rounded-md bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-indigo-500"
-                      >
-                        <option value="">-- Choose Supplier --</option>
-                        {suppliers.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name} ({s.code})
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => setSelectedSupplierId(val)}
+                        onSearchChange={handleSupplierSearch}
+                        placeholder="Search supplier..."
+                        className="w-full text-xs"
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold uppercase text-slate-300">

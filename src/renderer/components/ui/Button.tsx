@@ -27,15 +27,15 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variants = {
       primary:
-        'bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700 shadow-sm border border-transparent',
+        'bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700 shadow-xs border border-transparent',
       secondary:
-        'bg-surface-card text-charcoal-800 border border-surface-border hover:bg-surface-muted active:bg-gray-100 shadow-sm',
+        'bg-surface-card text-charcoal-800 border border-surface-border hover:bg-surface-muted active:bg-surface-muted shadow-xs',
       outline:
-        'border border-surface-borderStrong text-charcoal-700 hover:bg-surface-muted active:bg-gray-200',
+        'border border-surface-borderStrong text-charcoal-700 hover:bg-surface-muted active:bg-surface-muted',
       ghost:
-        'text-charcoal-700 hover:bg-surface-muted active:bg-gray-200',
+        'text-charcoal-700 hover:bg-surface-muted active:bg-surface-muted',
       danger:
-        'bg-status-error-bg text-status-error-text border border-status-error-border hover:bg-red-100 active:bg-red-200',
+        'bg-status-error-text text-white hover:bg-red-700 active:bg-red-800 shadow-xs border border-transparent',
     };
 
     const sizes = {

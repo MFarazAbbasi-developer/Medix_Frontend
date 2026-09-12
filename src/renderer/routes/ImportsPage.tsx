@@ -281,15 +281,15 @@ export const ImportsPage: React.FC = () => {
       )}
 
       {successMessage && (
-        <div className="p-3.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs flex items-start gap-2 shadow-sm">
-          <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />
-          <div className="flex-1">
+        <div className="p-3.5 rounded-lg border border-status-success-border bg-status-success-bg text-status-success-text text-xs flex items-start gap-2 shadow-xs">
+          <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-status-success-dot" />
+          <div className="flex-1 font-medium">
             <span className="font-semibold">Success: </span>
             {successMessage}
           </div>
           <button
             onClick={() => setSuccessMessage(null)}
-            className="text-emerald-700 hover:text-emerald-900"
+            className="text-status-success-text/70 hover:text-status-success-text"
           >
             ×
           </button>

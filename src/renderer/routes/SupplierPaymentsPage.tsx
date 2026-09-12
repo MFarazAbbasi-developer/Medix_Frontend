@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   CreditCard,
   Search,
@@ -18,6 +18,8 @@ import {
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { Pagination } from '../components/ui/Pagination';
+import { Combobox, ComboboxOption } from '../components/ui/Combobox';
 import {
   supplierPaymentsApi,
   SupplierPayment,
@@ -132,12 +134,37 @@ export const SupplierPaymentsPage: React.FC = () => {
     }
   }, [search, methodFilter, statusFilter, startDate, endDate, currentPage]);
 
+  // Supplier Combobox options & debounced search
+  const supplierOptions: ComboboxOption[] = useMemo(() => {
+    return suppliers.map((s) => ({
+      value: s.id,
+      label: `${s.name} (${s.code})`,
+      sublabel: s.city ? `City: ${s.city} • Balance: Rs. ${Number(s.currentBalance || 0).toFixed(2)}` : `Balance: Rs. ${Number(s.currentBalance || 0).toFixed(2)}`,
+    }));
+  }, [suppliers]);
+
+  const handleSupplierSearch = useCallback(async (query: string) => {
+    if (!query || !query.trim()) return;
+    try {
+      const res = await suppliersApi.getSuppliers({ search: query.trim(), isActive: true, limit: 50 });
+      if (res?.items) {
+        setSuppliers((prev) => {
+          const existingIds = new Set(prev.map((s) => s.id));
+          const newItems = res.items.filter((s) => !existingIds.has(s.id));
+          return [...prev, ...newItems];
+        });
+      }
+    } catch {
+      // Silently ignore
+    }
+  }, []);
+
   // Load Suppliers, Organization & Settings
   useEffect(() => {
     const fetchAuxData = async () => {
       try {
         const [data, orgRes, settingsRes] = await Promise.all([
-          suppliersApi.getSuppliers(),
+          suppliersApi.getSuppliers({ limit: 50, isActive: true }),
           organizationApi.getOrganization().catch(() => null),
           settingsApi.getSettings().catch(() => ({ items: [], map: {} })),
         ]);
@@ -666,35 +693,15 @@ export const SupplierPaymentsPage: React.FC = () => {
         </div>
 
         {/* Pagination Bar */}
-        {!isLoading && totalRecords > 0 && (
-          <div className="p-3 border-t border-surface-border flex items-center justify-between text-xs text-charcoal-500">
-            <div>
-              Showing {payments.length} of {totalRecords} vouchers
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                className="text-xs h-7 px-2"
-              >
-                Previous
-              </Button>
-              <span className="px-2 font-medium text-charcoal-700">
-                Page {currentPage} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                className="text-xs h-7 px-2"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+        {!isLoading && totalPages > 1 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalRecords}
+            pageSize={20}
+            onPageChange={setCurrentPage}
+            showPageSizeSelector={false}
+          />
         )}
       </Card>
 
@@ -736,20 +743,15 @@ export const SupplierPaymentsPage: React.FC = () => {
                   <label htmlFor="supplier-select" className="block text-xs font-semibold text-charcoal-700 mb-1">
                     Select Supplier / Vendor <span className="text-rose-500">*</span>
                   </label>
-                  <select
+                  <Combobox
                     id="supplier-select"
+                    options={supplierOptions}
                     value={selectedSupplierId}
-                    onChange={(e) => setSelectedSupplierId(e.target.value)}
-                    required
-                    className="w-full text-xs rounded-md border border-charcoal-300 bg-white px-3 py-2 text-charcoal-900 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                  >
-                    <option value="">-- Choose Supplier --</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.code})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSelectedSupplierId(val)}
+                    onSearchChange={handleSupplierSearch}
+                    placeholder="Search and choose supplier..."
+                    className="w-full text-xs"
+                  />
                 </div>
 
                 {selectedSupplier && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Layers,
   Search,
@@ -21,6 +21,9 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Pagination } from '../components/ui/Pagination';
+import { Combobox, ComboboxOption } from '../components/ui/Combobox';
 import {
   inventoryApi,
   StockSummaryItem,
@@ -50,6 +53,20 @@ export const InventoryPage: React.FC = () => {
     type: 'success' | 'error';
     message: string;
   } | null>(null);
+
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: React.ReactNode;
+    confirmText?: string;
+    variant?: 'primary' | 'danger' | 'warning';
+    onConfirm: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+  });
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
@@ -166,7 +183,8 @@ export const InventoryPage: React.FC = () => {
   // =========================================================
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([]);
   const [adjustmentsTotal, setAdjustmentsTotal] = useState(0);
-  const [adjustmentsPage] = useState(1);
+  const [adjustmentsPage, setAdjustmentsPage] = useState(1);
+  const [adjustmentsStatusFilter, setAdjustmentsStatusFilter] = useState<'ALL' | 'DRAFT' | 'POSTED' | 'CANCELLED'>('ALL');
   const [isLoadingAdjustments, setIsLoadingAdjustments] = useState(false);
 
   // New Adjustment Modal State
@@ -198,11 +216,37 @@ export const InventoryPage: React.FC = () => {
   const [lineRemarks, setLineRemarks] = useState('');
   const [isSavingAdjustment, setIsSavingAdjustment] = useState(false);
 
+  // Combobox options for adjustment line product search
+  const productComboboxOptions: ComboboxOption[] = useMemo(() => {
+    return catalogProducts.map((p) => ({
+      value: p.id,
+      label: `${p.name} (${p.sku})`,
+      sublabel: p.genericName || undefined,
+    }));
+  }, [catalogProducts]);
+
+  const handleProductSearch = useCallback(async (query: string) => {
+    if (!query || query.trim().length === 0) return;
+    try {
+      const res = await productsApi.getProducts({ search: query.trim(), limit: 50 });
+      if (res?.items) {
+        setCatalogProducts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const newItems = res.items.filter((p) => !existingIds.has(p.id));
+          return [...prev, ...newItems];
+        });
+      }
+    } catch {
+      // Ignore search error
+    }
+  }, []);
+
   const loadAdjustments = useCallback(async () => {
     try {
       setIsLoadingAdjustments(true);
       const res = await inventoryApi.getStockAdjustments({
         warehouseId: selectedWarehouseId || undefined,
+        status: adjustmentsStatusFilter === 'ALL' ? undefined : adjustmentsStatusFilter,
         page: adjustmentsPage,
         limit: 20,
       });
@@ -213,7 +257,7 @@ export const InventoryPage: React.FC = () => {
     } finally {
       setIsLoadingAdjustments(false);
     }
-  }, [selectedWarehouseId, adjustmentsPage]);
+  }, [selectedWarehouseId, adjustmentsStatusFilter, adjustmentsPage]);
 
   useEffect(() => {
     if (activeTab === 'adjustments') {
@@ -363,19 +407,25 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  const handleReverseAdjustment = async (adj: StockAdjustment) => {
-    if (!window.confirm(`Are you sure you want to reverse Stock Adjustment "${adj.adjustmentNumber}"? This will create compensating ledger entries.`)) {
-      return;
-    }
-
-    try {
-      const reversed = await inventoryApi.reverseStockAdjustment(adj.id);
-      showFeedback('success', `Adjustment reversed. Compensating document: ${reversed.adjustmentNumber}`);
-      loadAdjustments();
-      loadSummary();
-    } catch (err: unknown) {
-      showFeedback('error', (err as Error)?.message || 'Failed to reverse adjustment.');
-    }
+  const handleReverseAdjustment = (adj: StockAdjustment) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: `Reverse Stock Adjustment ${adj.adjustmentNumber}`,
+      description: `Are you sure you want to reverse Stock Adjustment "${adj.adjustmentNumber}"? This will create compensating ledger entries.`,
+      confirmText: 'Reverse Adjustment',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          const reversed = await inventoryApi.reverseStockAdjustment(adj.id);
+          showFeedback('success', `Adjustment reversed. Compensating document: ${reversed.adjustmentNumber}`);
+          loadAdjustments();
+          loadSummary();
+        } catch (err: unknown) {
+          showFeedback('error', (err as Error)?.message || 'Failed to reverse adjustment.');
+        }
+      },
+    });
   };
 
   // =========================================================
@@ -772,30 +822,14 @@ export const InventoryPage: React.FC = () => {
 
             {/* Pagination Controls */}
             {summaryTotal > 20 && (
-              <div className="flex items-center justify-between pt-3 border-t border-surface-border text-xs text-charcoal-600">
-                <span>Total {summaryTotal} products</span>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    disabled={summaryPage <= 1 || isLoadingSummary}
-                    onClick={() => setSummaryPage(summaryPage - 1)}
-                  >
-                    Previous
-                  </Button>
-                  <span className="px-2 font-semibold text-charcoal-800">
-                    Page {summaryPage} of {Math.ceil(summaryTotal / 20)}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    disabled={summaryPage * 20 >= summaryTotal || isLoadingSummary}
-                    onClick={() => setSummaryPage(summaryPage + 1)}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+              <Pagination
+                currentPage={summaryPage}
+                totalPages={Math.ceil(summaryTotal / 20)}
+                totalItems={summaryTotal}
+                pageSize={20}
+                onPageChange={setSummaryPage}
+                showPageSizeSelector={false}
+              />
             )}
           </Card>
         </div>
@@ -943,6 +977,17 @@ export const InventoryPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {ledgerTotal > 30 && (
+              <Pagination
+                currentPage={ledgerPage}
+                totalPages={Math.ceil(ledgerTotal / 30)}
+                totalItems={ledgerTotal}
+                pageSize={30}
+                onPageChange={setLedgerPage}
+                showPageSizeSelector={false}
+              />
+            )}
           </Card>
         </div>
       )}
@@ -953,7 +998,7 @@ export const InventoryPage: React.FC = () => {
       {activeTab === 'adjustments' && (
         <div className="space-y-4">
           <Card className="p-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Button
                   variant="primary"
@@ -963,6 +1008,21 @@ export const InventoryPage: React.FC = () => {
                   <Plus className="h-3 w-3 mr-1" />
                   New Stock Adjustment
                 </Button>
+
+                <select
+                  value={adjustmentsStatusFilter}
+                  onChange={(e) => {
+                    setAdjustmentsStatusFilter(e.target.value as any);
+                    setAdjustmentsPage(1);
+                  }}
+                  className="px-2.5 py-1 text-xs bg-surface-card border border-surface-border rounded text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="POSTED">Posted Only</option>
+                  <option value="DRAFT">Draft Only</option>
+                  <option value="CANCELLED">Cancelled Only</option>
+                </select>
+
                 <Button
                   variant="outline"
                   size="xs"
@@ -1066,6 +1126,17 @@ export const InventoryPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {adjustmentsTotal > 20 && (
+              <Pagination
+                currentPage={adjustmentsPage}
+                totalPages={Math.ceil(adjustmentsTotal / 20)}
+                totalItems={adjustmentsTotal}
+                pageSize={20}
+                onPageChange={setAdjustmentsPage}
+                showPageSizeSelector={false}
+              />
+            )}
           </Card>
         </div>
       )}
@@ -1428,18 +1499,14 @@ export const InventoryPage: React.FC = () => {
                     <label className="block text-[11px] font-semibold text-charcoal-700 mb-1">
                       Product
                     </label>
-                    <select
+                    <Combobox
+                      options={productComboboxOptions}
                       value={selectedAdjProduct?.id || ''}
-                      onChange={(e) => handleSelectAdjProduct(e.target.value)}
-                      className="w-full px-2 py-1 text-xs bg-surface-card border border-surface-border rounded text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                    >
-                      <option value="">Select Product...</option>
-                      {catalogProducts.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.sku})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => handleSelectAdjProduct(val)}
+                      onSearchChange={handleProductSearch}
+                      placeholder="Select Product..."
+                      className="w-full text-xs"
+                    />
                   </div>
 
                   <div>
@@ -1481,6 +1548,12 @@ export const InventoryPage: React.FC = () => {
                       type="number"
                       value={countedQtyInput}
                       onChange={(e) => setCountedQtyInput(parseInt(e.target.value, 10) || 0)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddAdjustmentLine();
+                        }
+                      }}
                       disabled={!selectedAdjBatch}
                       className="w-full px-2 py-1 text-xs bg-surface-card border border-surface-border rounded font-mono font-bold text-charcoal-900 focus:outline-none focus:ring-1 focus:ring-brand-500"
                     />
@@ -1651,19 +1724,14 @@ export const InventoryPage: React.FC = () => {
                 <label className="block text-xs font-semibold text-charcoal-700 mb-1">
                   Product SKU *
                 </label>
-                <select
+                <Combobox
+                  options={productComboboxOptions}
                   value={openingProductId}
-                  onChange={(e) => handleSelectOpeningProduct(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs bg-surface-card border border-surface-border rounded text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  required
-                >
-                  <option value="">Select Product...</option>
-                  {catalogProducts.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.sku})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => handleSelectOpeningProduct(val)}
+                  onSearchChange={handleProductSearch}
+                  placeholder="Search and choose product..."
+                  className="w-full text-xs"
+                />
               </div>
 
               <div>
@@ -1737,6 +1805,17 @@ export const InventoryPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Shared Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        description={confirmConfig.description}
+        confirmText={confirmConfig.confirmText}
+        variant={confirmConfig.variant || 'danger'}
+      />
     </div>
   );
 };

@@ -54,11 +54,6 @@ export const AppSidebar: React.FC = () => {
         { to: '/sales-returns', label: 'Returns', icon: RotateCcw },
         { to: '/payments', label: 'Payments', icon: CreditCard },
         { to: '/till-sessions', label: 'Till & Cash Close', icon: Wallet },
-      ],
-    },
-    {
-      group: 'Sales Operations',
-      items: [
         { to: '/salesmen', label: 'Salesmen', icon: UserCheck },
         { to: '/routes', label: 'Routes', icon: MapPin },
         { to: '/delivery-orders', label: 'Delivery Orders', icon: Truck },
@@ -140,15 +135,24 @@ export const AppSidebar: React.FC = () => {
                       clsx(
                         'flex items-center gap-2.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors',
                         isActive
-                          ? 'bg-brand-50 text-brand-700 font-semibold border border-brand-200/60 shadow-2xs'
+                          ? 'bg-brand-100 text-charcoal-900 font-semibold border border-brand-200 shadow-2xs'
                           : 'text-charcoal-700 hover:bg-surface-muted hover:text-charcoal-900 border border-transparent',
                         isSidebarCollapsed && 'justify-center px-0 py-2',
                       )
                     }
                   >
-                    <Icon className="h-4 w-4 shrink-0 text-charcoal-600" />
-                    {!isSidebarCollapsed && (
-                      <span className="truncate">{item.label}</span>
+                    {({ isActive }) => (
+                      <>
+                        <Icon
+                          className={clsx(
+                            'h-4 w-4 shrink-0 transition-colors',
+                            isActive ? 'text-brand-600' : 'text-charcoal-600',
+                          )}
+                        />
+                        {!isSidebarCollapsed && (
+                          <span className="truncate">{item.label}</span>
+                        )}
+                      </>
                     )}
                   </NavLink>
                 );

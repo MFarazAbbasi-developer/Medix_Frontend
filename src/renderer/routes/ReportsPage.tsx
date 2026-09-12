@@ -47,6 +47,7 @@ import {
   DashboardMetricsReport,
 } from '../api';
 import { clsx } from 'clsx';
+import { Button } from '../components/ui/Button';
 
 type ReportCategory = 'sales' | 'purchases' | 'inventory' | 'receivables_payables' | 'profitability' | 'dashboard';
 
@@ -482,28 +483,34 @@ export const ReportsPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="outline"
+            size="xs"
             onClick={handleExportCsv}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-muted text-charcoal-700 hover:bg-surface-border transition-colors border border-surface-border shadow-sm"
+            title="Export report dataset as CSV"
           >
-            <Download className="h-3.5 w-3.5 text-charcoal-500" />
+            <Download className="h-3.5 w-3.5 mr-1 text-charcoal-500" />
             <span>Export CSV</span>
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
+            size="xs"
             onClick={handlePrint}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-muted text-charcoal-700 hover:bg-surface-border transition-colors border border-surface-border shadow-sm"
+            title="Print formal report document"
           >
-            <Printer className="h-3.5 w-3.5 text-charcoal-500" />
+            <Printer className="h-3.5 w-3.5 mr-1 text-charcoal-500" />
             <span>Print A4</span>
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
+            size="xs"
             onClick={loadReportData}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors shadow-sm disabled:opacity-50"
+            title="Refresh Report Data"
           >
-            <RefreshCw className={clsx('h-3.5 w-3.5', loading && 'animate-spin')} />
+            <RefreshCw className={clsx('h-3.5 w-3.5 mr-1', loading && 'animate-spin')} />
             <span>Refresh</span>
-          </button>
+          </Button>
         </div>
       </div>
 

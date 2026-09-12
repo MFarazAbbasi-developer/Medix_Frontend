@@ -19,6 +19,7 @@ import {
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { Pagination } from '../components/ui/Pagination';
 import {
   deliveryOrdersApi,
   DeliveryOrder,
@@ -142,7 +143,7 @@ export const DeliveryOrdersPage: React.FC = () => {
     try {
       const params: any = {
         page: currentPage,
-        limit: 50,
+        limit: 20,
       };
       if (search.trim()) params.search = search.trim();
       if (statusFilter !== 'ALL') params.status = statusFilter as DeliveryOrderStatus;
@@ -698,38 +699,16 @@ export const DeliveryOrdersPage: React.FC = () => {
           </table>
 
           {/* Pagination Footer */}
-          <div className="bg-surface-card border-t border-surface-border px-4 py-2.5 flex items-center justify-between text-xs text-charcoal-500">
-            <div>
-              Showing {deliveryOrders.length} of {totalRecords} records
-            </div>
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1.5">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="h-7 px-2 text-xs"
-                >
-                  Previous
-                </Button>
-                <span className="text-xs px-2">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="h-7 px-2 text-xs"
-                >
-                  Next
-                </Button>
-              </div>
-            )}
-          </div>
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalRecords}
+              pageSize={20}
+              onPageChange={setCurrentPage}
+              showPageSizeSelector={false}
+            />
+          )}
         </Card>
       </div>
 

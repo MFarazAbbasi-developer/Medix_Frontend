@@ -27,6 +27,8 @@ import {
   Product,
 } from '../api';
 import { clsx } from 'clsx';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Pagination } from '../components/ui/Pagination';
 
 type ActiveTab = 'rules' | 'schemes' | 'simulator';
 
@@ -42,6 +44,9 @@ export const PricingPage: React.FC = () => {
   const [loadingRules, setLoadingRules] = useState(false);
   const [ruleSearch, setRuleSearch] = useState('');
   const [ruleStatusFilter, setRuleStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [rulePage, setRulePage] = useState(1);
+  const [ruleTotalPages, setRuleTotalPages] = useState(1);
+  const [ruleTotalRecords, setRuleTotalRecords] = useState(0);
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<CustomerPricingRule | null>(null);
 
@@ -64,6 +69,9 @@ export const PricingPage: React.FC = () => {
   const [schemeSearch, setSchemeSearch] = useState('');
   const [schemeTypeFilter, setSchemeTypeFilter] = useState<string>('ALL');
   const [schemeStatusFilter, setSchemeStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [schemePage, setSchemePage] = useState(1);
+  const [schemeTotalPages, setSchemeTotalPages] = useState(1);
+  const [schemeTotalRecords, setSchemeTotalRecords] = useState(0);
   const [isSchemeModalOpen, setIsSchemeModalOpen] = useState(false);
   const [editingScheme, setEditingScheme] = useState<PromotionalScheme | null>(null);
 
@@ -106,6 +114,20 @@ export const PricingPage: React.FC = () => {
     message: string;
   } | null>(null);
 
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: React.ReactNode;
+    confirmText?: string;
+    variant?: 'primary' | 'danger' | 'warning';
+    onConfirm: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+  });
+
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
@@ -137,15 +159,18 @@ export const PricingPage: React.FC = () => {
             : ruleStatusFilter === 'INACTIVE'
             ? false
             : undefined,
-        limit: 100,
+        page: rulePage,
+        limit: 20,
       });
       setRules(res.items || []);
+      setRuleTotalPages(res.meta?.totalPages || 1);
+      setRuleTotalRecords(res.meta?.total || (res.items || []).length);
     } catch (err: any) {
       showNotification('error', err.response?.data?.message || 'Failed to load pricing rules');
     } finally {
       setLoadingRules(false);
     }
-  }, [ruleSearch, ruleStatusFilter]);
+  }, [ruleSearch, ruleStatusFilter, rulePage]);
 
   // Load Schemes
   const loadSchemes = useCallback(async () => {
@@ -160,15 +185,18 @@ export const PricingPage: React.FC = () => {
             : schemeStatusFilter === 'INACTIVE'
             ? false
             : undefined,
-        limit: 100,
+        page: schemePage,
+        limit: 20,
       });
       setSchemes(res.items || []);
+      setSchemeTotalPages(res.meta?.totalPages || 1);
+      setSchemeTotalRecords(res.meta?.total || (res.items || []).length);
     } catch (err: any) {
       showNotification('error', err.response?.data?.message || 'Failed to load schemes');
     } finally {
       setLoadingSchemes(false);
     }
-  }, [schemeSearch, schemeTypeFilter, schemeStatusFilter]);
+  }, [schemeSearch, schemeTypeFilter, schemeStatusFilter, schemePage]);
 
   useEffect(() => {
     loadMasterData();
@@ -285,15 +313,24 @@ export const PricingPage: React.FC = () => {
     }
   };
 
-  const handleDeleteRule = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this pricing rule?')) return;
-    try {
-      await pricingApi.deleteRule(id);
-      showNotification('success', 'Pricing rule deleted successfully');
-      loadRules();
-    } catch (err: any) {
-      showNotification('error', err.response?.data?.message || 'Failed to delete pricing rule');
-    }
+  const handleDeleteRule = (id: string) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Delete Pricing Rule',
+      description: 'Are you sure you want to delete this pricing rule?',
+      confirmText: 'Delete Rule',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await pricingApi.deleteRule(id);
+          showNotification('success', 'Pricing rule deleted successfully');
+          loadRules();
+        } catch (err: any) {
+          showNotification('error', err.response?.data?.message || 'Failed to delete pricing rule');
+        }
+      },
+    });
   };
 
   // Scheme Modal Helpers
@@ -402,15 +439,24 @@ export const PricingPage: React.FC = () => {
     }
   };
 
-  const handleDeleteScheme = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this promotional scheme?')) return;
-    try {
-      await pricingApi.deleteScheme(id);
-      showNotification('success', 'Promotional scheme deleted successfully');
-      loadSchemes();
-    } catch (err: any) {
-      showNotification('error', err.response?.data?.message || 'Failed to delete scheme');
-    }
+  const handleDeleteScheme = (id: string) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Delete Promotional Scheme',
+      description: 'Are you sure you want to delete this promotional scheme?',
+      confirmText: 'Delete Scheme',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await pricingApi.deleteScheme(id);
+          showNotification('success', 'Promotional scheme deleted successfully');
+          loadSchemes();
+        } catch (err: any) {
+          showNotification('error', err.response?.data?.message || 'Failed to delete scheme');
+        }
+      },
+    });
   };
 
   return (
@@ -511,13 +557,19 @@ export const PricingPage: React.FC = () => {
                   type="text"
                   placeholder="Search customer, SKU, product or notes..."
                   value={ruleSearch}
-                  onChange={(e) => setRuleSearch(e.target.value)}
+                  onChange={(e) => {
+                    setRuleSearch(e.target.value);
+                    setRulePage(1);
+                  }}
                   className="w-full pl-8 pr-3 py-1.5 text-xs bg-surface-ground border border-surface-border rounded-md focus:outline-none focus:ring-1 focus:ring-brand-500"
                 />
               </div>
               <select
                 value={ruleStatusFilter}
-                onChange={(e: any) => setRuleStatusFilter(e.target.value)}
+                onChange={(e: any) => {
+                  setRuleStatusFilter(e.target.value);
+                  setRulePage(1);
+                }}
                 className="text-xs bg-surface-ground border border-surface-border rounded-md px-2.5 py-1.5 focus:outline-none"
               >
                 <option value="ALL">All Statuses</option>
@@ -661,6 +713,16 @@ export const PricingPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {ruleTotalRecords > 20 && (
+            <Pagination
+              currentPage={rulePage}
+              totalPages={ruleTotalPages}
+              totalItems={ruleTotalRecords}
+              pageSize={20}
+              onPageChange={setRulePage}
+            />
+          )}
         </div>
       )}
 
@@ -676,13 +738,19 @@ export const PricingPage: React.FC = () => {
                   type="text"
                   placeholder="Search scheme name, code or product..."
                   value={schemeSearch}
-                  onChange={(e) => setSchemeSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSchemeSearch(e.target.value);
+                    setSchemePage(1);
+                  }}
                   className="w-full pl-8 pr-3 py-1.5 text-xs bg-surface-ground border border-surface-border rounded-md focus:outline-none focus:ring-1 focus:ring-brand-500"
                 />
               </div>
               <select
                 value={schemeTypeFilter}
-                onChange={(e) => setSchemeTypeFilter(e.target.value)}
+                onChange={(e) => {
+                  setSchemeTypeFilter(e.target.value);
+                  setSchemePage(1);
+                }}
                 className="text-xs bg-surface-ground border border-surface-border rounded-md px-2.5 py-1.5 focus:outline-none"
               >
                 <option value="ALL">All Scheme Types</option>
@@ -693,7 +761,10 @@ export const PricingPage: React.FC = () => {
               </select>
               <select
                 value={schemeStatusFilter}
-                onChange={(e: any) => setSchemeStatusFilter(e.target.value)}
+                onChange={(e: any) => {
+                  setSchemeStatusFilter(e.target.value);
+                  setSchemePage(1);
+                }}
                 className="text-xs bg-surface-ground border border-surface-border rounded-md px-2.5 py-1.5 focus:outline-none"
               >
                 <option value="ALL">All Statuses</option>
@@ -855,6 +926,16 @@ export const PricingPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {schemeTotalRecords > 20 && (
+            <Pagination
+              currentPage={schemePage}
+              totalPages={schemeTotalPages}
+              totalItems={schemeTotalRecords}
+              pageSize={20}
+              onPageChange={setSchemePage}
+            />
+          )}
         </div>
       )}
 
@@ -1667,6 +1748,17 @@ export const PricingPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Shared Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        description={confirmConfig.description}
+        confirmText={confirmConfig.confirmText}
+        variant={confirmConfig.variant || 'danger'}
+      />
     </div>
   );
 };

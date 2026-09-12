@@ -678,9 +678,11 @@ export const SalesPage: React.FC = () => {
     purchaseCost: number;
   }) => {
     if (!batchPickerItem) return;
-    setCartItems((prev) =>
-      prev.map((it) => {
-        if (it.id !== batchPickerItem.id) return it;
+    const targetId = batchPickerItem.id;
+    setCartItems((prev) => {
+      const targetIdx = prev.findIndex((it) => it.id === targetId);
+      const updated = prev.map((it) => {
+        if (it.id !== targetId) return it;
         const unitRate = defaultPricingBase === 'MRP' ? allocBatch.retailPrice : allocBatch.tradePrice;
         const gross = it.billedQuantity * unitRate;
         const discAmt = gross * (it.discountPercentage / 100);
@@ -697,8 +699,13 @@ export const SalesPage: React.FC = () => {
           unitPrice: unitRate,
           lineTotal: taxable + taxAmt,
         };
-      }),
-    );
+      });
+      if (targetIdx !== -1) {
+        setSelectedRowIndex(targetIdx);
+        setIsEditingRow(true);
+      }
+      return updated;
+    });
     setBatchPickerItem(null);
     setBatchPickerOptions(null);
   };
@@ -1237,9 +1244,9 @@ export const SalesPage: React.FC = () => {
       )}
 
       {/* COMPACT TOP BAR: POS Billing, Customer Combobox, Warehouse, Parked Bills, Tab Switcher */}
-      <div className="bg-white px-3.5 py-2 rounded-lg border border-surface-border flex flex-wrap items-center justify-between gap-2.5 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+      <div className="bg-white px-3 py-2 rounded-lg border border-surface-border flex flex-nowrap items-center justify-between gap-2 shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <div className="h-7 w-7 rounded bg-brand-50 flex items-center justify-center text-brand-700">
               <Receipt className="h-4 w-4" />
             </div>
@@ -1249,11 +1256,11 @@ export const SalesPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="h-6 w-[1px] bg-surface-border hidden md:block" />
+          <div className="h-6 w-[1px] bg-surface-border hidden md:block shrink-0" />
 
           {/* Customer Selection Combobox */}
           {activeTab === 'POS' && (
-            <div className="w-64 sm:w-72">
+            <div className="w-52 lg:w-60 shrink-0">
               <Combobox
                 options={customerOptions}
                 value={selectedCustomerId}
@@ -1268,12 +1275,12 @@ export const SalesPage: React.FC = () => {
 
           {/* Delivery Address Selector - visible only for non-WALK_IN customers */}
           {activeTab === 'POS' && selectedCustomer && selectedCustomer.customerType !== 'WALK_IN' && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 shrink-0">
               <MapPin className="h-3.5 w-3.5 text-charcoal-400 shrink-0" />
               <select
                 value={selectedDeliveryAddressId}
                 onChange={(e) => handleDeliveryAddressChange(e.target.value)}
-                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[170px] truncate"
+                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[140px] truncate"
                 title="Delivery Destination Address"
               >
                 <option value="">No Delivery Address / Counter Sale</option>
@@ -1288,12 +1295,12 @@ export const SalesPage: React.FC = () => {
 
           {/* Warehouse Selector */}
           {activeTab === 'POS' && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 shrink-0">
               <Building2 className="h-3.5 w-3.5 text-charcoal-400 shrink-0" />
               <select
                 value={selectedWarehouseId}
                 onChange={(e) => setSelectedWarehouseId(e.target.value)}
-                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[130px] truncate"
                 title="Dispatch Warehouse"
               >
                 {warehouses.map((w) => (
@@ -1307,12 +1314,12 @@ export const SalesPage: React.FC = () => {
 
           {/* Salesman Selector */}
           {activeTab === 'POS' && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 shrink-0">
               <UserCheck className="h-3.5 w-3.5 text-charcoal-400 shrink-0" />
               <select
                 value={selectedSalesmanId}
                 onChange={(e) => setSelectedSalesmanId(e.target.value)}
-                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[140px]"
+                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[120px] truncate"
                 title="Assigned Salesman"
               >
                 <option value="">No Salesman</option>
@@ -1327,11 +1334,11 @@ export const SalesPage: React.FC = () => {
 
           {/* Route Selector */}
           {activeTab === 'POS' && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 shrink-0">
               <select
                 value={selectedRouteId}
                 onChange={(e) => handleRouteChange(e.target.value)}
-                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[130px]"
+                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[110px] truncate"
                 title="Assigned Route"
               >
                 <option value="">No Route</option>
@@ -1346,7 +1353,7 @@ export const SalesPage: React.FC = () => {
         </div>
 
         {/* Right Tab Controls & Parked Drafts Indicator */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {activeTillSession ? (
             <div
               className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold"

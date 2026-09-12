@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { SalesReturnsPage } from './SalesReturnsPage';
-import { salesReturnsApi } from '../api/sales-returns.api';
-import * as salesApiModule from '../api/sales.api';
-import * as warehousesApiModule from '../api/warehouses.api';
+import { salesReturnsApi, salesApi, warehousesApi } from '../api';
 
 describe('SalesReturnsPage Component', () => {
   const mockReturn = {
@@ -115,10 +113,9 @@ describe('SalesReturnsPage Component', () => {
       },
     };
 
-    vi.spyOn(salesApiModule, 'getInvoices').mockResolvedValue(mockInvoicesRes as any);
-    vi.spyOn(salesApiModule.salesApi, 'getInvoices').mockResolvedValue(mockInvoicesRes as any);
+    vi.spyOn(salesApi, 'getInvoices').mockResolvedValue(mockInvoicesRes as any);
 
-    vi.spyOn(warehousesApiModule.warehousesApi, 'getWarehouses').mockResolvedValue([
+    vi.spyOn(warehousesApi, 'getWarehouses').mockResolvedValue([
       {
         id: 'wh-std',
         name: 'Main Warehouse',
@@ -212,8 +209,10 @@ describe('SalesReturnsPage Component', () => {
     fireEvent.click(openBtn);
 
     expect(await screen.findByText('Record Sales Return / Credit Note')).toBeInTheDocument();
-    const invoiceSelect = await screen.findByDisplayValue('-- Choose Invoice to Return Against --');
-    fireEvent.change(invoiceSelect, { target: { value: 'inv-1' } });
+    const invoiceCombobox = screen.getByPlaceholderText(/Search and choose invoice/i);
+    fireEvent.focus(invoiceCombobox);
+    const invoiceOption = await screen.findByRole('option', { name: /INV-00001/i });
+    fireEvent.click(invoiceOption);
 
     await waitFor(() => {
       expect(salesReturnsApi.getReturnableInvoice).toHaveBeenCalledWith('inv-1');

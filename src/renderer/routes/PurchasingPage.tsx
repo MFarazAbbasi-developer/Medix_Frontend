@@ -17,6 +17,8 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Combobox, ComboboxOption } from '../components/ui/Combobox';
 import {
   getPurchaseOrders,
   getGoodsReceiveNotes,
@@ -90,6 +92,19 @@ export const PurchasingPage: React.FC = () => {
   const [viewingGrn, setViewingGrn] = useState<GoodsReceiveNote | null>(null);
   const [viewingPo, setViewingPo] = useState<PurchaseOrder | null>(null);
   const [isPosting, setIsPosting] = useState<boolean>(false);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: React.ReactNode;
+    confirmText?: string;
+    variant?: 'primary' | 'danger' | 'warning';
+    onConfirm: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+  });
 
   // Load master dropdown data
   const loadMasterData = useCallback(async () => {
@@ -97,7 +112,7 @@ export const PurchasingPage: React.FC = () => {
       const [supRes, whData, prodRes, orgRes, settingsRes] = await Promise.all([
         getSuppliers({ isActive: true, limit: 200 }),
         warehousesApi.getWarehouses(),
-        productsApi.getProducts({ limit: 500, isActive: 'true' }),
+        productsApi.getProducts({ limit: 50, isActive: 'true' }),
         organizationApi.getOrganization().catch(() => null),
         settingsApi.getSettings().catch(() => ({ items: [], map: {} })),
       ]);
@@ -130,6 +145,43 @@ export const PurchasingPage: React.FC = () => {
   useEffect(() => {
     loadMasterData();
   }, [loadMasterData]);
+
+  // Debounced product search for Combobox
+  const [isSearchingProducts, setIsSearchingProducts] = useState(false);
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const handleProductSearch = useCallback((query: string) => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    if (!query.trim()) return;
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setIsSearchingProducts(true);
+      try {
+        const res = await productsApi.getProducts({ search: query.trim(), limit: 50, isActive: 'true' });
+        if (res.items && res.items.length > 0) {
+          setProducts((prev) => {
+            const existingIds = new Set(prev.map((p) => p.id));
+            const newItems = res.items.filter((p) => !existingIds.has(p.id));
+            return [...prev, ...newItems];
+          });
+        }
+      } catch {
+        // ignore
+      } finally {
+        setIsSearchingProducts(false);
+      }
+    }, 250);
+  }, []);
+
+  const productComboboxOptions: ComboboxOption[] = React.useMemo(() => {
+    return products.map((p) => ({
+      value: p.id,
+      label: p.name,
+      sublabel: `${p.sku}${p.genericName ? ` • ${p.genericName}` : ''}`,
+    }));
+  }, [products]);
 
   // Load GRNs
   const loadGrnList = useCallback(async () => {
@@ -402,34 +454,48 @@ export const PurchasingPage: React.FC = () => {
   };
 
   // Direct Post Draft GRN
-  const handlePostExistingGrn = async (grn: GoodsReceiveNote) => {
-    if (!window.confirm(`Post GRN ${grn.grnNumber} now? This will immediately receive ${grn._count?.items || 0} items into stock and update supplier payable.`)) {
-      return;
-    }
-
-    setIsPosting(true);
-    try {
-      const res = await postGoodsReceiveNote(grn.id);
-      showFeedback('success', `GRN ${res?.grnNumber} posted successfully into stock ledger!`);
-      loadGrnList();
-    } catch (err: any) {
-      showFeedback('error', err.response?.data?.message || err.message || 'Failed to post GRN');
-    } finally {
-      setIsPosting(false);
-    }
+  const handlePostExistingGrn = (grn: GoodsReceiveNote) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: `Post GRN ${grn.grnNumber}`,
+      description: `Post GRN ${grn.grnNumber} now? This will immediately receive ${grn._count?.items || 0} items into stock and update supplier payable.`,
+      confirmText: 'Post GRN',
+      variant: 'primary',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        setIsPosting(true);
+        try {
+          const res = await postGoodsReceiveNote(grn.id);
+          showFeedback('success', `GRN ${res?.grnNumber} posted successfully into stock ledger!`);
+          loadGrnList();
+        } catch (err: any) {
+          showFeedback('error', err.response?.data?.message || err.message || 'Failed to post GRN');
+        } finally {
+          setIsPosting(false);
+        }
+      },
+    });
   };
 
   // Discard Draft GRN
-  const handleDiscardGrn = async (grn: GoodsReceiveNote) => {
-    if (!window.confirm(`Discard draft GRN ${grn.grnNumber}?`)) return;
-
-    try {
-      await deleteDraftGoodsReceiveNote(grn.id);
-      showFeedback('success', 'Draft GRN discarded');
-      loadGrnList();
-    } catch (err: any) {
-      showFeedback('error', err.response?.data?.message || err.message || 'Failed to discard GRN');
-    }
+  const handleDiscardGrn = (grn: GoodsReceiveNote) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: `Discard Draft GRN ${grn.grnNumber}`,
+      description: `Are you sure you want to discard draft GRN ${grn.grnNumber}? This draft will be deleted.`,
+      confirmText: 'Discard GRN',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await deleteDraftGoodsReceiveNote(grn.id);
+          showFeedback('success', 'Draft GRN discarded');
+          loadGrnList();
+        } catch (err: any) {
+          showFeedback('error', err.response?.data?.message || err.message || 'Failed to discard GRN');
+        }
+      },
+    });
   };
 
   // ----------------------------------------------------
@@ -521,15 +587,24 @@ export const PurchasingPage: React.FC = () => {
     }
   };
 
-  const handleCancelPo = async (po: PurchaseOrder) => {
-    if (!window.confirm(`Cancel Purchase Order ${po.poNumber}?`)) return;
-    try {
-      await cancelPurchaseOrder(po.id);
-      showFeedback('success', `Purchase Order ${po.poNumber} cancelled`);
-      loadPoList();
-    } catch (err: any) {
-      showFeedback('error', err.response?.data?.message || err.message || 'Failed to cancel PO');
-    }
+  const handleCancelPo = (po: PurchaseOrder) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: `Cancel Purchase Order ${po.poNumber}`,
+      description: `Are you sure you want to cancel Purchase Order ${po.poNumber}?`,
+      confirmText: 'Cancel PO',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await cancelPurchaseOrder(po.id);
+          showFeedback('success', `Purchase Order ${po.poNumber} cancelled`);
+          loadPoList();
+        } catch (err: any) {
+          showFeedback('error', err.response?.data?.message || err.message || 'Failed to cancel PO');
+        }
+      },
+    });
   };
 
   // View full GRN detail modal
@@ -1174,18 +1249,21 @@ export const PurchasingPage: React.FC = () => {
                       return (
                         <tr key={idx} className="hover:bg-surface-muted/30">
                           {/* Product */}
-                          <td className="py-1.5 px-2">
-                            <select
+                          <td className="py-1.5 px-2 min-w-[210px]">
+                            <Combobox
+                              options={productComboboxOptions}
                               value={line.productId}
-                              onChange={(e) => updateGrnLine(idx, 'productId', e.target.value)}
-                              className="w-full h-7 px-1.5 text-xs border border-surface-border rounded bg-white text-charcoal-900 font-medium"
-                            >
-                              {products.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name} ({p.sku})
-                                </option>
-                              ))}
-                            </select>
+                              onChange={(val) => {
+                                if (val) {
+                                  updateGrnLine(idx, 'productId', val);
+                                }
+                              }}
+                              onSearchChange={handleProductSearch}
+                              isLoading={isSearchingProducts}
+                              placeholder="Search medicine / SKU..."
+                              inputClassName="h-7 text-xs font-medium"
+                              isClearable={false}
+                            />
                           </td>
 
                           {/* Batch No */}
@@ -1288,6 +1366,14 @@ export const PurchasingPage: React.FC = () => {
                               max="100"
                               value={line.taxPercentage}
                               onChange={(e) => updateGrnLine(idx, 'taxPercentage', parseFloat(e.target.value) || 0)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (idx === grnLines.length - 1) {
+                                    addGrnLine();
+                                  }
+                                }
+                              }}
                               className="w-full h-7 px-1 text-xs text-right border border-surface-border rounded bg-white"
                             />
                           </td>
@@ -1769,6 +1855,17 @@ export const PurchasingPage: React.FC = () => {
           </Card>
         </div>
       )}
+
+      {/* Shared Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        description={confirmConfig.description}
+        confirmText={confirmConfig.confirmText}
+        variant={confirmConfig.variant || 'primary'}
+      />
     </div>
   );
 };

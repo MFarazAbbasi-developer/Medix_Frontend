@@ -18,6 +18,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { Pagination } from '../components/ui/Pagination';
 import {
   productsApi,
   Product,
@@ -559,30 +560,14 @@ export const ProductsPage: React.FC = () => {
 
         {/* Pagination Controls */}
         {totalProducts > 20 && (
-          <div className="flex items-center justify-between pt-3 border-t border-surface-border text-xs text-charcoal-600">
-            <span>Total {totalProducts} products</span>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="xs"
-                disabled={page <= 1 || isLoading}
-                onClick={() => setPage(page - 1)}
-              >
-                Previous
-              </Button>
-              <span className="px-2 font-semibold text-charcoal-800">
-                Page {page} of {Math.ceil(totalProducts / 20)}
-              </span>
-              <Button
-                variant="outline"
-                size="xs"
-                disabled={page * 20 >= totalProducts || isLoading}
-                onClick={() => setPage(page + 1)}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={page}
+            totalPages={Math.ceil(totalProducts / 20)}
+            totalItems={totalProducts}
+            pageSize={20}
+            onPageChange={setPage}
+            showPageSizeSelector={false}
+          />
         )}
       </Card>
 

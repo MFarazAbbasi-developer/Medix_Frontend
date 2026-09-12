@@ -14,10 +14,14 @@ interface AppState {
     uptimeSeconds?: number;
   } | null;
   isSidebarCollapsed: boolean;
+  isCommandPaletteOpen: boolean;
   setApiBaseUrl: (url: string) => void;
   setBackendStatus: (status: BackendStatus) => void;
   setServerInfo: (info: AppState['serverInfo']) => void;
   toggleSidebar: () => void;
+  openCommandPalette: () => void;
+  closeCommandPalette: () => void;
+  toggleCommandPalette: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => {
@@ -32,6 +36,7 @@ export const useAppStore = create<AppState>((set) => {
     lastCheckedAt: null,
     serverInfo: null,
     isSidebarCollapsed: storedSidebar === 'true',
+    isCommandPaletteOpen: false,
 
     setApiBaseUrl: (url: string) => {
       const sanitized = url.trim().replace(/\/+$/, '');
@@ -57,5 +62,10 @@ export const useAppStore = create<AppState>((set) => {
         return { isSidebarCollapsed: next };
       });
     },
+
+    openCommandPalette: () => set({ isCommandPaletteOpen: true }),
+    closeCommandPalette: () => set({ isCommandPaletteOpen: false }),
+    toggleCommandPalette: () =>
+      set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
   };
 });

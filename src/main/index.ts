@@ -13,7 +13,7 @@ function createWindow(): void {
     minHeight: 640,
     show: false,
     title: 'Medix by FARMAX',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#F5F7F9',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,

@@ -181,10 +181,10 @@ export const Combobox: React.FC<ComboboxProps> = ({
       <div
         className={twMerge(
           clsx(
-            'flex h-8 w-full items-center rounded border bg-surface-card px-2 text-xs shadow-sm transition-colors focus-within:ring-1 focus-within:ring-brand-500',
+            'flex h-8 w-full items-center rounded border bg-surface-card px-2 text-xs shadow-2xs transition-colors focus-within:ring-1 focus-within:ring-brand-500',
             disabled && 'cursor-not-allowed bg-surface-muted opacity-60',
             error
-              ? 'border-red-500 focus-within:ring-red-500'
+              ? 'border-status-error-text focus-within:ring-status-error-text'
               : 'border-surface-border hover:border-surface-borderStrong',
             inputClassName,
           ),
@@ -242,14 +242,14 @@ export const Combobox: React.FC<ComboboxProps> = ({
       </div>
 
       {/* Error or Helper text */}
-      {error && <p className="text-[11px] text-red-600 font-medium">{error}</p>}
+      {error && <p className="text-[11px] text-status-error-text font-medium">{error}</p>}
       {helperText && !error && (
         <p className="text-[11px] text-charcoal-500">{helperText}</p>
       )}
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded border border-surface-border bg-surface-card shadow-lg animate-in fade-in duration-100 select-none">
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded border border-surface-border bg-surface-card shadow-md animate-in fade-in duration-100 select-none">
           <ul ref={listRef} role="listbox" className="p-1 divide-y divide-surface-border/40">
             {filteredOptions.length === 0 ? (
               <li className="px-3 py-3 text-center text-xs text-charcoal-400">
@@ -271,7 +271,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                       'flex items-center justify-between rounded px-2.5 py-1.5 text-xs cursor-pointer transition-colors',
                       opt.disabled && 'opacity-40 cursor-not-allowed',
                       isHighlighted && !opt.disabled && 'bg-brand-50 text-brand-900 font-medium',
-                      isSelected && 'bg-brand-50/70 font-bold text-brand-700',
+                      isSelected && 'bg-brand-100 text-brand-700 font-bold',
                       !isHighlighted && !isSelected && 'text-charcoal-800 hover:bg-surface-muted',
                     )}
                   >

@@ -19,6 +19,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { Pagination } from '../components/ui/Pagination';
 import { useAppStore } from '../store/appStore';
 import { useHealth } from '../hooks/useHealth';
 import {
@@ -1121,30 +1122,14 @@ export const SettingsPage: React.FC = () => {
 
           {/* Pagination Footer */}
           {auditTotal > 15 && (
-            <div className="flex items-center justify-between pt-3 border-t border-surface-border text-xs text-charcoal-600">
-              <span>Total {auditTotal} audit events</span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="xs"
-                  disabled={auditPage <= 1 || isLoadingAudit}
-                  onClick={() => loadAudit(auditPage - 1)}
-                >
-                  Previous
-                </Button>
-                <span className="px-2 font-semibold text-charcoal-800">
-                  Page {auditPage}
-                </span>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  disabled={auditPage * 15 >= auditTotal || isLoadingAudit}
-                  onClick={() => loadAudit(auditPage + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+            <Pagination
+              currentPage={auditPage}
+              totalPages={Math.ceil(auditTotal / 15)}
+              totalItems={auditTotal}
+              pageSize={15}
+              onPageChange={loadAudit}
+              showPageSizeSelector={false}
+            />
           )}
         </Card>
       )}

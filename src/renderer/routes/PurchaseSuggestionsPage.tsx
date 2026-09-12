@@ -20,6 +20,7 @@ import {
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { Pagination } from '../components/ui/Pagination';
 import { usePermission } from '../hooks/usePermission';
 import {
   reorderSuggestionsApi,
@@ -843,35 +844,16 @@ export const PurchaseSuggestionsPage: React.FC = () => {
         </div>
 
         {/* Dense Table Footer & Pagination */}
-        <div className="p-2 border-t border-surface-border bg-surface-muted/30 flex items-center justify-between text-xs text-charcoal-500 shrink-0">
-          <div>
-            Showing <span className="font-semibold text-charcoal-800">{suggestions.length}</span> of{' '}
-            <span className="font-semibold text-charcoal-800">{totalItems}</span> items •{' '}
-            <span className="font-semibold text-brand-700">{selectedProductIds.size}</span> selected
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1 || loading}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="h-7 px-2.5 text-xs"
-            >
-              Prev
-            </Button>
-            <span className="px-2 font-mono text-xs">Page {page}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={suggestions.length < limit || loading}
-              onClick={() => setPage((p) => p + 1)}
-              className="h-7 px-2.5 text-xs"
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+        {totalItems > limit && (
+          <Pagination
+            currentPage={page}
+            totalPages={Math.ceil(totalItems / limit)}
+            totalItems={totalItems}
+            pageSize={limit}
+            onPageChange={setPage}
+            showPageSizeSelector={false}
+          />
+        )}
       </Card>
 
       {/* Quick Config Modal */}

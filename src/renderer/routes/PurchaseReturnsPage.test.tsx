@@ -262,8 +262,10 @@ describe('PurchaseReturnsPage Component', () => {
 
     expect(await screen.findByText('Create Purchase Return (Draft)')).toBeInTheDocument();
 
-    const grnSelect = screen.getByLabelText(/Select Posted GRN/i, { selector: 'select' }) || screen.getByRole('combobox');
-    fireEvent.change(grnSelect, { target: { value: 'grn-1' } });
+    const grnCombobox = screen.getByPlaceholderText(/Search and choose posted GRN/i);
+    fireEvent.focus(grnCombobox);
+    const grnOption = await screen.findByRole('option', { name: /GRN-00001/i });
+    fireEvent.click(grnOption);
 
     await waitFor(() => {
       expect(purchaseReturnsApi.getReturnableGrn).toHaveBeenCalledWith('grn-1');

@@ -118,13 +118,10 @@ describe('SupplierPaymentsPage Component', () => {
 
     expect(await screen.findByText('Payment Details')).toBeInTheDocument();
 
-    const select = screen.getByLabelText(/Select Supplier/i);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Getz Pharma Distribution \(SUP-001\)/)).toBeInTheDocument();
-    });
-
-    fireEvent.change(select, { target: { value: 'sup-1' } });
+    const combobox = screen.getByPlaceholderText(/Search and choose supplier/i);
+    fireEvent.focus(combobox);
+    const option = await screen.findByRole('option', { name: /Getz Pharma Distribution/i });
+    fireEvent.click(option);
 
     await waitFor(() => {
       expect(supplierPaymentsApi.getUnpaidGrns).toHaveBeenCalledWith('sup-1');

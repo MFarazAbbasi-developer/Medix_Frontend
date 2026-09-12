@@ -93,16 +93,16 @@ export const AppHeader: React.FC = () => {
 
         {/* Center: Global Quick Command & Search Entry */}
         <div className="flex-1 max-w-md mx-4 hidden md:block">
-          <div className="relative flex items-center">
+          <div
+            className="relative flex items-center cursor-pointer"
+            onClick={() => useAppStore.getState().openCommandPalette()}
+          >
             <Search className="absolute left-2.5 h-3.5 w-3.5 text-charcoal-400 pointer-events-none" />
             <input
               id="global-command-search"
               type="text"
               readOnly
-              placeholder="Quick search products, customers, invoices, batches..."
-              onClick={() => {
-                // Focus indicator or future command palette launch
-              }}
+              placeholder="Search commands or jump to page..."
               className="w-full h-7.5 pl-8 pr-16 rounded border border-surface-border bg-surface-muted/50 hover:bg-surface-muted text-xs text-charcoal-700 placeholder:text-charcoal-400 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:bg-white cursor-pointer transition-colors"
             />
             <div className="absolute right-2 flex items-center pointer-events-none">

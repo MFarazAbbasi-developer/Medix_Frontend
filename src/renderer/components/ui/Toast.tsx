@@ -215,24 +215,24 @@ const ToastCard: React.FC<ToastCardProps> = ({ item, onDismiss }) => {
     }
   > = {
     success: {
-      container: 'bg-emerald-50 border-emerald-300 text-emerald-950',
-      icon: <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />,
-      titleColor: 'text-emerald-900',
+      container: 'bg-status-success-bg border-status-success-border text-charcoal-900',
+      icon: <CheckCircle2 className="h-4 w-4 text-status-success-dot shrink-0 mt-0.5" />,
+      titleColor: 'text-status-success-text',
     },
     error: {
-      container: 'bg-red-50 border-red-300 text-red-950',
-      icon: <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />,
-      titleColor: 'text-red-900',
+      container: 'bg-status-error-bg border-status-error-border text-charcoal-900',
+      icon: <AlertCircle className="h-4 w-4 text-status-error-dot shrink-0 mt-0.5" />,
+      titleColor: 'text-status-error-text',
     },
     warning: {
-      container: 'bg-amber-50 border-amber-300 text-amber-950',
-      icon: <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />,
-      titleColor: 'text-amber-900',
+      container: 'bg-status-warning-bg border-status-warning-border text-charcoal-900',
+      icon: <AlertTriangle className="h-4 w-4 text-status-warning-dot shrink-0 mt-0.5" />,
+      titleColor: 'text-status-warning-text',
     },
     info: {
-      container: 'bg-blue-50 border-blue-300 text-blue-950',
-      icon: <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />,
-      titleColor: 'text-blue-900',
+      container: 'bg-status-info-bg border-status-info-border text-charcoal-900',
+      icon: <Info className="h-4 w-4 text-status-info-dot shrink-0 mt-0.5" />,
+      titleColor: 'text-status-info-text',
     },
   };
 
@@ -267,7 +267,7 @@ const ToastCard: React.FC<ToastCardProps> = ({ item, onDismiss }) => {
         type="button"
         onClick={onDismiss}
         title="Dismiss notification"
-        className="rounded p-0.5 opacity-60 hover:opacity-100 transition-opacity focus:outline-none focus:ring-1 focus:ring-brand-500 shrink-0"
+        className="rounded p-0.5 text-charcoal-400 opacity-60 hover:opacity-100 hover:text-charcoal-700 transition-opacity focus:outline-none focus:ring-1 focus:ring-brand-500 shrink-0"
       >
         <X className="h-3.5 w-3.5" />
       </button>

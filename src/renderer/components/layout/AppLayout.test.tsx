@@ -63,7 +63,7 @@ describe('Application Shell Layout Suite', () => {
       renderWithProviders(<AppHeader />);
 
       expect(
-        screen.getByPlaceholderText(/quick search products, customers/i),
+        screen.getByPlaceholderText(/search commands|quick search/i),
       ).toBeInTheDocument();
       expect(screen.getByText('Ctrl+K')).toBeInTheDocument();
     });

@@ -23,6 +23,7 @@ import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Pagination } from '../components/ui/Pagination';
 import {
   getCustomers,
   createCustomer,
@@ -56,6 +57,9 @@ export const CustomersPage: React.FC = () => {
   const [salesmanFilter, setSalesmanFilter] = useState<string>('ALL');
   const [routeFilter, setRouteFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalRecords, setTotalRecords] = useState<number>(0);
 
   // Feedback toast
   const [feedback, setFeedback] = useState<{
@@ -157,15 +161,18 @@ export const CustomersPage: React.FC = () => {
         salesmanId: salesmanFilter === 'ALL' ? undefined : salesmanFilter,
         routeId: routeFilter === 'ALL' ? undefined : routeFilter,
         isActive: statusFilter === 'ALL' ? undefined : statusFilter === 'ACTIVE',
-        limit: 100,
+        page: currentPage,
+        limit: 20,
       });
       setCustomers(res?.items || []);
+      setTotalRecords(res?.meta?.total || 0);
+      setTotalPages(res?.meta?.totalPages || 1);
     } catch (err: any) {
       showFeedback('error', err.response?.data?.message || err.message || 'Failed to load customers');
     } finally {
       setIsLoading(false);
     }
-  }, [search, typeFilter, salesmanFilter, routeFilter, statusFilter]);
+  }, [search, typeFilter, salesmanFilter, routeFilter, statusFilter, currentPage]);
 
   useEffect(() => {
     loadCustomers();
@@ -613,7 +620,10 @@ export const CustomersPage: React.FC = () => {
               type="text"
               placeholder="Search code, pharmacy name, phone, license..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
               className="pl-8 text-xs h-9 w-full"
             />
           </div>
@@ -621,7 +631,10 @@ export const CustomersPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
             <select
               value={salesmanFilter}
-              onChange={(e) => setSalesmanFilter(e.target.value)}
+              onChange={(e) => {
+                setSalesmanFilter(e.target.value);
+                setCurrentPage(1);
+              }}
               className="h-9 px-3 rounded-md border border-surface-border bg-white text-xs font-medium text-charcoal-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
               <option value="ALL">All Salesmen</option>
@@ -634,7 +647,10 @@ export const CustomersPage: React.FC = () => {
 
             <select
               value={routeFilter}
-              onChange={(e) => setRouteFilter(e.target.value)}
+              onChange={(e) => {
+                setRouteFilter(e.target.value);
+                setCurrentPage(1);
+              }}
               className="h-9 px-3 rounded-md border border-surface-border bg-white text-xs font-medium text-charcoal-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
               <option value="ALL">All Routes</option>
@@ -647,7 +663,10 @@ export const CustomersPage: React.FC = () => {
 
             <select
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              onChange={(e) => {
+                setTypeFilter(e.target.value);
+                setCurrentPage(1);
+              }}
               className="h-9 px-3 rounded-md border border-surface-border bg-white text-xs font-medium text-charcoal-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
               <option value="ALL">All Types</option>
@@ -660,7 +679,10 @@ export const CustomersPage: React.FC = () => {
 
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
               className="h-9 px-3 rounded-md border border-surface-border bg-white text-xs font-medium text-charcoal-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
               <option value="ALL">All Status</option>
@@ -845,6 +867,18 @@ export const CustomersPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Footer */}
+        {totalPages > 1 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalRecords}
+            pageSize={20}
+            onPageChange={setCurrentPage}
+            showPageSizeSelector={false}
+          />
+        )}
       </Card>
 
       {/* Add / Edit Customer Modal */}

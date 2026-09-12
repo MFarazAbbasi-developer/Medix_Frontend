@@ -16,24 +16,24 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
 }) => {
   const variants = {
     success: {
-      container: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-      dot: 'bg-emerald-600',
+      container: 'bg-status-success-bg text-status-success-text border-status-success-border',
+      dot: 'bg-status-success-dot',
     },
     warning: {
-      container: 'bg-amber-50 text-amber-800 border-amber-200',
-      dot: 'bg-amber-600',
+      container: 'bg-status-warning-bg text-status-warning-text border-status-warning-border',
+      dot: 'bg-status-warning-dot',
     },
     error: {
-      container: 'bg-red-50 text-red-800 border-red-200',
-      dot: 'bg-red-600',
+      container: 'bg-status-error-bg text-status-error-text border-status-error-border',
+      dot: 'bg-status-error-dot',
     },
     info: {
-      container: 'bg-blue-50 text-blue-800 border-blue-200',
-      dot: 'bg-blue-600',
+      container: 'bg-status-info-bg text-status-info-text border-status-info-border',
+      dot: 'bg-status-info-dot',
     },
     neutral: {
-      container: 'bg-gray-100 text-gray-700 border-gray-200',
-      dot: 'bg-gray-500',
+      container: 'bg-surface-muted text-charcoal-700 border-surface-border',
+      dot: 'bg-charcoal-500',
     },
   };
 
@@ -43,7 +43,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     <span
       className={twMerge(
         clsx(
-          'inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold border tabular-nums',
+          'inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold border tabular-nums select-none',
           currentVariant.container,
           className,
         ),
@@ -52,7 +52,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     >
       {dot && (
         <span
-          className={clsx('h-1.5 w-1.5 rounded-full', currentVariant.dot)}
+          className={clsx('h-1.5 w-1.5 rounded-full shrink-0', currentVariant.dot)}
         />
       )}
       {children}

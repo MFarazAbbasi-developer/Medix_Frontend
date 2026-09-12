@@ -34,6 +34,7 @@ import {
   auditApi,
   AuditLogItem,
 } from '../api';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 type TabType = 'users' | 'roles' | 'backup' | 'export' | 'audit' | 'system';
 
@@ -54,6 +55,20 @@ export const AdminPage: React.FC = () => {
       setNotification(null);
     }, 5000);
   };
+
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: React.ReactNode;
+    confirmText?: string;
+    variant?: 'primary' | 'danger' | 'warning';
+    onConfirm: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+  });
 
   // -------------------------------------------------------------
   // 1. Users Tab State
@@ -286,23 +301,31 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  const handleToggleUserStatus = async (user: AdminUser) => {
+  const handleToggleUserStatus = (user: AdminUser) => {
     const nextStatus = !user.isActive;
     const confirmMessage = nextStatus
       ? `Activate user account "${user.username}"?`
       : `Deactivate user account "${user.username}"? Active sessions will be terminated.`;
 
-    if (!window.confirm(confirmMessage)) return;
-
-    try {
-      await adminApi.setUserStatus(user.id, nextStatus);
-      showNotification(
-        `User "${user.username}" ${nextStatus ? 'activated' : 'deactivated'} successfully`,
-      );
-      fetchUsers();
-    } catch (err: any) {
-      showNotification(err.message || 'Failed to change user status', 'error');
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: `${nextStatus ? 'Activate' : 'Deactivate'} User Account`,
+      description: confirmMessage,
+      confirmText: nextStatus ? 'Activate User' : 'Deactivate User',
+      variant: nextStatus ? 'primary' : 'danger',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await adminApi.setUserStatus(user.id, nextStatus);
+          showNotification(
+            `User "${user.username}" ${nextStatus ? 'activated' : 'deactivated'} successfully`,
+          );
+          fetchUsers();
+        } catch (err: any) {
+          showNotification(err.message || 'Failed to change user status', 'error');
+        }
+      },
+    });
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -365,26 +388,29 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  const handleDeleteRole = async (role: AdminRole) => {
+  const handleDeleteRole = (role: AdminRole) => {
     if (role.isSystem) {
       showNotification('System roles cannot be deleted', 'error');
       return;
     }
-    if (
-      !window.confirm(
-        `Are you sure you want to delete role "${role.name}"? This action cannot be undone.`,
-      )
-    ) {
-      return;
-    }
 
-    try {
-      await adminApi.deleteRole(role.id);
-      showNotification(`Role "${role.name}" deleted successfully`);
-      fetchRolesAndMatrix();
-    } catch (err: any) {
-      showNotification(err.message || 'Failed to delete role', 'error');
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: `Delete Role "${role.name}"`,
+      description: `Are you sure you want to delete role "${role.name}"? This action cannot be undone.`,
+      confirmText: 'Delete Role',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await adminApi.deleteRole(role.id);
+          showNotification(`Role "${role.name}" deleted successfully`);
+          fetchRolesAndMatrix();
+        } catch (err: any) {
+          showNotification(err.message || 'Failed to delete role', 'error');
+        }
+      },
+    });
   };
 
   const togglePermissionCode = (code: string) => {
@@ -2036,6 +2062,17 @@ export const AdminPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Shared Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        description={confirmConfig.description}
+        confirmText={confirmConfig.confirmText}
+        variant={confirmConfig.variant || 'danger'}
+      />
     </div>
   );
 };

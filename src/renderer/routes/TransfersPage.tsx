@@ -30,6 +30,7 @@ import {
   batchesApi,
   Batch,
 } from '../api';
+import { Pagination } from '../components/ui/Pagination';
 import { useAuthStore } from '../store/authStore';
 import { clsx } from 'clsx';
 
@@ -67,6 +68,11 @@ export const TransfersPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [sourceWarehouseFilter, setSourceWarehouseFilter] = useState<string>('ALL');
   const [destWarehouseFilter, setDestWarehouseFilter] = useState<string>('ALL');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // Notifications
   const [notification, setNotification] = useState<{
@@ -177,11 +183,14 @@ export const TransfersPage: React.FC = () => {
               : undefined,
           destinationWarehouseId:
             destWarehouseFilter !== 'ALL' ? destWarehouseFilter : undefined,
-          limit: 100,
+          page: currentPage,
+          limit: 20,
         }),
         transfersApi.getMetrics(),
       ]);
       setTransfers(data.items || []);
+      setTotalRecords(data.meta?.total || 0);
+      setTotalPages(data.meta?.totalPages || 1);
       setMetrics(metricsRes);
     } catch (err: any) {
       showNotification(
@@ -191,7 +200,7 @@ export const TransfersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, sourceWarehouseFilter, destWarehouseFilter]);
+  }, [search, statusFilter, sourceWarehouseFilter, destWarehouseFilter, currentPage]);
 
   useEffect(() => {
     loadMasterData();
@@ -916,6 +925,19 @@ export const TransfersPage: React.FC = () => {
             )}
           </tbody>
         </table>
+
+        {totalRecords > 20 && (
+          <div className="p-2 border-t border-surface-border">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalRecords}
+              pageSize={20}
+              onPageChange={setCurrentPage}
+              showPageSizeSelector={false}
+            />
+          </div>
+        )}
       </div>
 
       {/* MODAL 1: CREATE / EDIT TRANSFER MODAL */}

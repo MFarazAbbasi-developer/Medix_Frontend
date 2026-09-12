@@ -17,6 +17,7 @@ import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Pagination } from '../components/ui/Pagination';
 import { useToast } from '../components/ui/Toast';
 import {
   salesOperationsApi,
@@ -51,6 +52,11 @@ export const SalesmenPage: React.FC = () => {
   const [branchFilter, setBranchFilter] = useState<string>('ALL');
   const [routeFilter, setRouteFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalRecords, setTotalRecords] = useState<number>(0);
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -110,15 +116,18 @@ export const SalesmenPage: React.FC = () => {
         branchId: branchFilter === 'ALL' ? undefined : branchFilter,
         routeId: routeFilter === 'ALL' ? undefined : routeFilter,
         isActive: statusFilter === 'ALL' ? undefined : statusFilter === 'ACTIVE',
-        limit: 100,
+        page: currentPage,
+        limit: 20,
       });
       setSalesmen(res?.items || []);
+      setTotalRecords(res?.meta?.total || 0);
+      setTotalPages(res?.meta?.totalPages || 1);
     } catch (err: any) {
       showToast(err.response?.data?.message || err.message || 'Failed to load salesmen', 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [search, branchFilter, routeFilter, statusFilter, showToast]);
+  }, [search, branchFilter, routeFilter, statusFilter, currentPage, showToast]);
 
   useEffect(() => {
     loadMasterData();
@@ -265,14 +274,20 @@ export const SalesmenPage: React.FC = () => {
                 type="text"
                 placeholder="Search by code, name, phone, email..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="pl-8 text-xs h-8"
               />
             </div>
 
             <select
               value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
+              onChange={(e) => {
+                setBranchFilter(e.target.value);
+                setCurrentPage(1);
+              }}
               className="h-8 px-2.5 rounded border border-surface-border bg-white text-xs text-charcoal-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
               <option value="ALL">All Branches</option>
@@ -285,7 +300,10 @@ export const SalesmenPage: React.FC = () => {
 
             <select
               value={routeFilter}
-              onChange={(e) => setRouteFilter(e.target.value)}
+              onChange={(e) => {
+                setRouteFilter(e.target.value);
+                setCurrentPage(1);
+              }}
               className="h-8 px-2.5 rounded border border-surface-border bg-white text-xs text-charcoal-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
               <option value="ALL">All Routes</option>
@@ -298,7 +316,10 @@ export const SalesmenPage: React.FC = () => {
 
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
               className="h-8 px-2.5 rounded border border-surface-border bg-white text-xs text-charcoal-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
               <option value="ALL">All Status</option>
@@ -433,9 +454,22 @@ export const SalesmenPage: React.FC = () => {
           </table>
         </div>
 
-        {/* Footer info */}
+        {/* Pagination & Footer info */}
+        {totalRecords > 20 && (
+          <div className="pt-2 border-t border-surface-border">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalRecords}
+              pageSize={20}
+              onPageChange={setCurrentPage}
+              showPageSizeSelector={false}
+            />
+          </div>
+        )}
+
         <div className="flex items-center justify-between text-xs text-charcoal-500 pt-1 shrink-0">
-          <span>Showing {salesmen.length} salesmen</span>
+          <span>Showing {salesmen.length} of {totalRecords} salesmen</span>
           <span>Tip: Assigning routes enables automated customer default routing.</span>
         </div>
       </Card>

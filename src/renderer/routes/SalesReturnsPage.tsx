@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   RotateCcw,
   Search,
@@ -17,6 +17,8 @@ import {
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { Pagination } from '../components/ui/Pagination';
+import { Combobox, ComboboxOption } from '../components/ui/Combobox';
 import {
   salesReturnsApi,
   SalesReturn,
@@ -27,7 +29,7 @@ import {
   ReturnStockDisposition,
   ReturnRefundMode,
   SalesReturnStatus,
-  getInvoices,
+  salesApi,
   SalesInvoice,
   warehousesApi,
   organizationApi,
@@ -149,12 +151,37 @@ export const SalesReturnsPage: React.FC = () => {
     }
   }, [search, reasonFilter, refundModeFilter, statusFilter, startDate, endDate, currentPage]);
 
+  // Invoice Combobox options and debounced server lookup
+  const invoiceOptions: ComboboxOption[] = useMemo(() => {
+    return invoices.map((inv) => ({
+      value: inv.id,
+      label: `${inv.invoiceNumber || 'Draft'} — ${inv.customer?.name || 'Walk-in'}`,
+      sublabel: `Net: Rs. ${Number(inv.netTotal).toFixed(2)} • Paid: Rs. ${Number(inv.paidAmount).toFixed(2)} • Date: ${new Date(inv.invoiceDate).toLocaleDateString()}`,
+    }));
+  }, [invoices]);
+
+  const handleInvoiceSearch = useCallback(async (query: string) => {
+    if (!query || !query.trim()) return;
+    try {
+      const res = await salesApi.getInvoices({ search: query.trim(), status: 'POSTED', limit: 50 });
+      if (res?.items) {
+        setInvoices((prev) => {
+          const existingIds = new Set(prev.map((i) => i.id));
+          const newItems = res.items.filter((i) => !existingIds.has(i.id));
+          return [...prev, ...newItems];
+        });
+      }
+    } catch {
+      // Silently tolerate search error
+    }
+  }, []);
+
   // Load Invoices, Warehouses, Organization & Settings
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [invData, whData, orgRes, settingsRes] = await Promise.all([
-          getInvoices({ limit: 100, status: 'POSTED' }),
+          salesApi.getInvoices({ limit: 50, status: 'POSTED' }),
           warehousesApi.getWarehouses(),
           organizationApi.getOrganization().catch(() => null),
           settingsApi.getSettings().catch(() => ({ items: [], map: {} })),
@@ -790,32 +817,14 @@ export const SalesReturnsPage: React.FC = () => {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="p-3 border-t border-surface-border flex items-center justify-between text-xs text-charcoal-600">
-            <div>
-              Showing page <span className="font-semibold">{currentPage}</span> of{' '}
-              <span className="font-semibold">{totalPages}</span> ({totalRecords} items)
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="text-xs"
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="text-xs"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalRecords}
+            pageSize={20}
+            onPageChange={setCurrentPage}
+            showPageSizeSelector={false}
+          />
         )}
       </Card>
 
@@ -858,21 +867,14 @@ export const SalesReturnsPage: React.FC = () => {
                     <label className="block text-xs font-semibold text-charcoal-800 mb-1.5">
                       Select Sales Invoice <span className="text-rose-500">*</span>
                     </label>
-                    <select
+                    <Combobox
+                      options={invoiceOptions}
                       value={selectedInvoiceId}
-                      onChange={(e) => setSelectedInvoiceId(e.target.value)}
-                      required
-                      className="w-full text-xs rounded-md border border-charcoal-300 bg-white px-3 py-2 text-charcoal-900 font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    >
-                      <option value="">-- Choose Invoice to Return Against --</option>
-                      {invoices.map((inv) => (
-                        <option key={inv.id} value={inv.id}>
-                          {inv.invoiceNumber} — {inv.customer?.name} (Net: Rs.{' '}
-                          {Number(inv.netTotal).toFixed(2)}, Paid: Rs.{' '}
-                          {Number(inv.paidAmount).toFixed(2)})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setSelectedInvoiceId(val)}
+                      onSearchChange={handleInvoiceSearch}
+                      placeholder="Search and choose invoice to return against..."
+                      className="w-full text-xs"
+                    />
                   </div>
 
                   <div>

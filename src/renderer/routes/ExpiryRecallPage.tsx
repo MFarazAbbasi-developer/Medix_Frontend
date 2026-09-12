@@ -33,6 +33,7 @@ import {
   masterDataApi,
   Manufacturer,
 } from '../api';
+import { Pagination } from '../components/ui/Pagination';
 import { useAuthStore } from '../store/authStore';
 import { clsx } from 'clsx';
 
@@ -73,6 +74,9 @@ export const ExpiryRecallPage: React.FC = () => {
   const [expiryWarehouseFilter, setExpiryWarehouseFilter] = useState<string>('ALL');
   const [expiryManufacturerFilter, setExpiryManufacturerFilter] = useState<string>('ALL');
   const [expirySearch, setExpirySearch] = useState('');
+  const [expiryPage, setExpiryPage] = useState<number>(1);
+  const [expiryTotalPages, setExpiryTotalPages] = useState<number>(1);
+  const [expiryTotalItems, setExpiryTotalItems] = useState<number>(0);
   const [selectedBatchBreakdown, setSelectedBatchBreakdown] = useState<any | null>(null);
   const [isBreakdownModalOpen, setIsBreakdownModalOpen] = useState(false);
 
@@ -83,6 +87,9 @@ export const ExpiryRecallPage: React.FC = () => {
   const [loadingQuarantine, setLoadingQuarantine] = useState(false);
   const [quarantineWhFilter, setQuarantineWhFilter] = useState<string>('ALL');
   const [quarantineSearch, setQuarantineSearch] = useState('');
+  const [quarantinePage, setQuarantinePage] = useState<number>(1);
+  const [quarantineTotalPages, setQuarantineTotalPages] = useState<number>(1);
+  const [quarantineTotalItems, setQuarantineTotalItems] = useState<number>(0);
 
   // Quarantine Move Modal (Standard -> Quarantine)
   const [isQuarantineMoveOpen, setIsQuarantineMoveOpen] = useState(false);
@@ -113,6 +120,9 @@ export const ExpiryRecallPage: React.FC = () => {
   const [recallStatusFilter, setRecallStatusFilter] = useState<string>('ALL');
   const [recallSeverityFilter, setRecallSeverityFilter] = useState<string>('ALL');
   const [recallSearch, setRecallSearch] = useState('');
+  const [recallPage, setRecallPage] = useState<number>(1);
+  const [recallTotalPages, setRecallTotalPages] = useState<number>(1);
+  const [recallTotalItems, setRecallTotalItems] = useState<number>(0);
 
   // Create Recall Modal
   const [isCreateRecallOpen, setIsCreateRecallOpen] = useState(false);
@@ -170,17 +180,20 @@ export const ExpiryRecallPage: React.FC = () => {
           warehouseId: expiryWarehouseFilter !== 'ALL' ? expiryWarehouseFilter : undefined,
           manufacturerId: expiryManufacturerFilter !== 'ALL' ? expiryManufacturerFilter : undefined,
           search: expirySearch.trim() || undefined,
-          limit: 100,
+          page: expiryPage,
+          limit: 20,
         }),
       ]);
       setExpiryMetrics(metricsRes);
-      setExpiringBatches(batchesRes.data);
+      setExpiringBatches(batchesRes.data || []);
+      setExpiryTotalPages(batchesRes.pagination?.totalPages || 1);
+      setExpiryTotalItems(batchesRes.pagination?.totalItems || 0);
     } catch (err: any) {
       showNotification('error', err.response?.data?.message || 'Failed to load expiry data');
     } finally {
       setLoadingExpiry(false);
     }
-  }, [thresholdDays, expiryStatusFilter, expiryWarehouseFilter, expiryManufacturerFilter, expirySearch]);
+  }, [thresholdDays, expiryStatusFilter, expiryWarehouseFilter, expiryManufacturerFilter, expirySearch, expiryPage]);
 
   // ----------------------------------------------------
   // TAB 2: QUARANTINE FETCHING
@@ -191,15 +204,18 @@ export const ExpiryRecallPage: React.FC = () => {
       const res = await expiryApi.getQuarantineStock({
         warehouseId: quarantineWhFilter !== 'ALL' ? quarantineWhFilter : undefined,
         search: quarantineSearch.trim() || undefined,
-        limit: 100,
+        page: quarantinePage,
+        limit: 20,
       });
-      setQuarantineStock(res.data);
+      setQuarantineStock(res.data || []);
+      setQuarantineTotalPages(res.pagination?.totalPages || 1);
+      setQuarantineTotalItems(res.pagination?.totalItems || 0);
     } catch (err: any) {
       showNotification('error', err.response?.data?.message || 'Failed to load quarantine stock');
     } finally {
       setLoadingQuarantine(false);
     }
-  }, [quarantineWhFilter, quarantineSearch]);
+  }, [quarantineWhFilter, quarantineSearch, quarantinePage]);
 
   // ----------------------------------------------------
   // TAB 3: RECALLS FETCHING
@@ -211,15 +227,18 @@ export const ExpiryRecallPage: React.FC = () => {
         status: recallStatusFilter !== 'ALL' ? (recallStatusFilter as any) : undefined,
         severity: recallSeverityFilter !== 'ALL' ? (recallSeverityFilter as any) : undefined,
         search: recallSearch.trim() || undefined,
-        limit: 100,
+        page: recallPage,
+        limit: 20,
       });
-      setRecalls(res.data);
+      setRecalls(res.data || []);
+      setRecallTotalPages(res.pagination?.totalPages || 1);
+      setRecallTotalItems(res.pagination?.totalItems || 0);
     } catch (err: any) {
       showNotification('error', err.response?.data?.message || 'Failed to load product recalls');
     } finally {
       setLoadingRecalls(false);
     }
-  }, [recallStatusFilter, recallSeverityFilter, recallSearch]);
+  }, [recallStatusFilter, recallSeverityFilter, recallSearch, recallPage]);
 
   // Tab change trigger
   useEffect(() => {
@@ -923,6 +942,19 @@ export const ExpiryRecallPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {expiryTotalItems > 20 && (
+              <div className="p-3 border-t border-surface-border">
+                <Pagination
+                  currentPage={expiryPage}
+                  totalPages={expiryTotalPages}
+                  totalItems={expiryTotalItems}
+                  pageSize={20}
+                  onPageChange={setExpiryPage}
+                  showPageSizeSelector={false}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1116,6 +1148,19 @@ export const ExpiryRecallPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {quarantineTotalItems > 20 && (
+              <div className="p-3 border-t border-surface-border">
+                <Pagination
+                  currentPage={quarantinePage}
+                  totalPages={quarantineTotalPages}
+                  totalItems={quarantineTotalItems}
+                  pageSize={20}
+                  onPageChange={setQuarantinePage}
+                  showPageSizeSelector={false}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1316,6 +1361,19 @@ export const ExpiryRecallPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {recallTotalItems > 20 && (
+              <div className="p-3 border-t border-surface-border">
+                <Pagination
+                  currentPage={recallPage}
+                  totalPages={recallTotalPages}
+                  totalItems={recallTotalItems}
+                  pageSize={20}
+                  onPageChange={setRecallPage}
+                  showPageSizeSelector={false}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}

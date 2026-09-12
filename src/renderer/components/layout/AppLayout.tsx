@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { AppHeader } from './AppHeader';
 import { AppSidebar } from './AppSidebar';
+import { CommandPalette } from '../ui/CommandPalette';
 
 export const AppLayout: React.FC = () => {
   return (
@@ -13,6 +14,7 @@ export const AppLayout: React.FC = () => {
           <Outlet />
         </main>
       </div>
+      <CommandPalette />
     </div>
   );
 };

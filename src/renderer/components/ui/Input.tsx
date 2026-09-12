@@ -18,7 +18,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-xs font-semibold text-charcoal-700"
+            className="block text-xs font-semibold text-charcoal-700 select-none"
           >
             {label}
           </label>
@@ -29,16 +29,16 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           className={twMerge(
             clsx(
-              'flex h-8 w-full rounded border bg-surface-card px-2.5 py-1 text-xs text-charcoal-900 placeholder:text-charcoal-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-charcoal-400 shadow-sm transition-colors',
+              'flex h-8 w-full rounded border bg-surface-card px-2.5 py-1 text-xs text-charcoal-900 placeholder:text-charcoal-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-charcoal-400 shadow-2xs transition-colors',
               error
-                ? 'border-red-500 focus-visible:ring-red-500'
+                ? 'border-status-error-text focus-visible:ring-status-error-text'
                 : 'border-surface-border hover:border-surface-borderStrong',
               className,
             ),
           )}
           {...props}
         />
-        {error && <p className="text-[11px] text-red-600 font-medium">{error}</p>}
+        {error && <p className="text-[11px] text-status-error-text font-medium">{error}</p>}
         {helperText && !error && (
           <p className="text-[11px] text-charcoal-500">{helperText}</p>
         )}
