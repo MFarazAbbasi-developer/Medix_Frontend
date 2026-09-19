@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { useAuthStore } from '../../store/authStore';
+import { usePermission } from '../../hooks/usePermission';
 import { StatusBadge } from '../ui/StatusBadge';
 import { ServerConfigModal } from '../ServerConfigModal';
 import { useHealth } from '../../hooks/useHealth';
@@ -19,6 +20,7 @@ export const AppHeader: React.FC = () => {
   const { backendStatus, apiBaseUrl, serverInfo } = useAppStore();
   const { user, logout } = useAuthStore();
   const { refetch, isFetching } = useHealth();
+  const { isAdmin } = usePermission();
 
   const handleMinimize = () => {
     window.electronAPI?.minimizeWindow();
@@ -50,18 +52,31 @@ export const AppHeader: React.FC = () => {
   }, []);
 
   const getStatusBadge = () => {
+    if (isAdmin) {
+      switch (backendStatus) {
+        case 'connected':
+          return (
+            <StatusBadge variant="success">
+              API Online {serverInfo?.databaseStatus === 'connected' ? '• DB Ready' : '• DB Degraded'}
+            </StatusBadge>
+          );
+        case 'checking':
+          return <StatusBadge variant="warning">Checking API...</StatusBadge>;
+        case 'disconnected':
+        default:
+          return <StatusBadge variant="error">API Offline</StatusBadge>;
+      }
+    }
+
+    // Operator-friendly simplified status
     switch (backendStatus) {
       case 'connected':
-        return (
-          <StatusBadge variant="success">
-            API Online {serverInfo?.databaseStatus === 'connected' ? '• DB Ready' : '• DB Degraded'}
-          </StatusBadge>
-        );
+        return <StatusBadge variant="success">Online</StatusBadge>;
       case 'checking':
-        return <StatusBadge variant="warning">Checking API...</StatusBadge>;
+        return <StatusBadge variant="warning">Connecting...</StatusBadge>;
       case 'disconnected':
       default:
-        return <StatusBadge variant="error">API Offline</StatusBadge>;
+        return <StatusBadge variant="error">Offline</StatusBadge>;
     }
   };
 
@@ -117,23 +132,26 @@ export const AppHeader: React.FC = () => {
         <div className="flex items-center gap-2.5 shrink-0">
           {/* Server & Connectivity Status */}
           <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setIsConfigOpen(true)}
-              title={`Active Server: ${apiBaseUrl}`}
-              className="flex items-center gap-1 px-1.5 py-1 rounded text-xs text-charcoal-700 hover:bg-surface-muted border border-transparent hover:border-surface-border transition-colors"
-            >
-              <Server className="h-3.5 w-3.5 text-charcoal-500" />
-              <span className="text-[11px] font-mono text-charcoal-600 hidden xl:inline truncate max-w-[120px]">
-                {apiBaseUrl.replace(/^https?:\/\//, '')}
-              </span>
-            </button>
+            {/* Server config trigger visible only to administrators */}
+            {isAdmin && (
+              <button
+                onClick={() => setIsConfigOpen(true)}
+                title={`Active Server: ${apiBaseUrl}`}
+                className="flex items-center gap-1 px-1.5 py-1 rounded text-xs text-charcoal-700 hover:bg-surface-muted border border-transparent hover:border-surface-border transition-colors"
+              >
+                <Server className="h-3.5 w-3.5 text-charcoal-500" />
+                <span className="text-[11px] font-mono text-charcoal-600 hidden xl:inline truncate max-w-[120px]">
+                  {apiBaseUrl.replace(/^https?:\/\//, '')}
+                </span>
+              </button>
+            )}
 
             {getStatusBadge()}
 
             <button
               onClick={() => refetch()}
               disabled={isFetching}
-              title="Refresh Server Connection"
+              title="Refresh Connection"
               className="p-1 rounded text-charcoal-500 hover:text-charcoal-800 hover:bg-surface-muted transition-colors disabled:opacity-40"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
@@ -197,10 +215,12 @@ export const AppHeader: React.FC = () => {
         </div>
       </header>
 
-      <ServerConfigModal
-        isOpen={isConfigOpen}
-        onClose={() => setIsConfigOpen(false)}
-      />
+      {isAdmin && (
+        <ServerConfigModal
+          isOpen={isConfigOpen}
+          onClose={() => setIsConfigOpen(false)}
+        />
+      )}
     </>
   );
 };

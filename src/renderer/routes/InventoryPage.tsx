@@ -42,8 +42,12 @@ import {
   Batch,
 } from '../api';
 
+import { usePermission } from '../hooks/usePermission';
+import { formatApiErrorMessage } from '../utils';
+
 export const InventoryPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'summary' | 'ledger' | 'adjustments' | 'fefo'>('summary');
+  const { isAdmin } = usePermission();
 
   // --- Warehouses State ---
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -69,12 +73,13 @@ export const InventoryPage: React.FC = () => {
     onConfirm: () => {},
   });
 
-  const showFeedback = (type: 'success' | 'error', message: string) => {
-    setFeedback({ type, message });
+  const showFeedback = (type: 'success' | 'error', message: string | unknown) => {
+    const formatted = typeof message === 'string' ? message : formatApiErrorMessage(message);
+    setFeedback({ type, message: formatted });
     if (type === 'error') {
-      toast.error(message);
+      toast.error(formatted);
     } else {
-      toast.success(message);
+      toast.success(formatted);
     }
     setTimeout(() => setFeedback(null), 4500);
   };
@@ -668,19 +673,21 @@ export const InventoryPage: React.FC = () => {
           <span>Stock Adjustments</span>
         </button>
 
-        <button
-          type="button"
-          data-testid="tab-fefo"
-          onClick={() => setActiveTab('fefo')}
-          className={`pb-2 px-3 font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
-            activeTab === 'fefo'
-              ? 'border-brand-500 text-brand-600'
-              : 'border-transparent text-charcoal-500 hover:text-charcoal-800'
-          }`}
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          <span>FEFO Allocation Simulator</span>
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            data-testid="tab-fefo"
+            onClick={() => setActiveTab('fefo')}
+            className={`pb-2 px-3 font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'fefo'
+                ? 'border-brand-500 text-brand-600'
+                : 'border-transparent text-charcoal-500 hover:text-charcoal-800'
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>FEFO Allocation Simulator</span>
+          </button>
+        )}
       </div>
 
       {/* ========================================================= */}

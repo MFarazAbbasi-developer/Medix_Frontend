@@ -3,22 +3,29 @@ import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Button } from './Button';
+import { formatApiErrorMessage } from '../../utils/errorFormatter';
 
 export interface ErrorStateProps {
   title?: string;
   message?: string;
+  error?: unknown;
   onRetry?: () => void;
   className?: string;
   compact?: boolean;
 }
 
 export const ErrorState: React.FC<ErrorStateProps> = ({
-  title = 'An error occurred',
-  message = 'Failed to load information. Please try again.',
+  title = 'Unable to Load Data',
+  message,
+  error,
   onRetry,
   className,
   compact = false,
 }) => {
+  const displayMessage =
+    message ||
+    (error ? formatApiErrorMessage(error) : 'Failed to load information. Please try again.');
+
   return (
     <div
       className={twMerge(
@@ -37,9 +44,9 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
         <h4 className={clsx('font-bold text-status-error-text', compact ? 'text-xs' : 'text-sm')}>
           {title}
         </h4>
-        {message && (
+        {displayMessage && (
           <p className={clsx('text-charcoal-700 leading-relaxed font-medium', compact ? 'text-[11px]' : 'text-xs')}>
-            {message}
+            {displayMessage}
           </p>
         )}
       </div>
@@ -52,7 +59,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
           className="mt-1 gap-1.5 border-status-error-border text-status-error-text hover:bg-status-error-bg"
         >
           <RefreshCw className="h-3.5 w-3.5" />
-          <span>Retry</span>
+          <span>Try Again</span>
         </Button>
       )}
     </div>

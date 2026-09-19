@@ -24,7 +24,9 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Pagination } from '../components/ui/Pagination';
+import { FormSection } from '../components/ui/FormSection';
 import { toast } from '../components/ui/Toast';
+import { formatApiErrorMessage } from '../utils';
 import {
   getCustomers,
   createCustomer,
@@ -68,12 +70,13 @@ export const CustomersPage: React.FC = () => {
     message: string;
   } | null>(null);
 
-  const showFeedback = (type: 'success' | 'error', message: string) => {
-    setFeedback({ type, message });
+  const showFeedback = (type: 'success' | 'error', message: string | unknown) => {
+    const formatted = typeof message === 'string' ? message : formatApiErrorMessage(message);
+    setFeedback({ type, message: formatted });
     if (type === 'error') {
-      toast.error(message);
+      toast.error(formatted);
     } else {
-      toast.success(message);
+      toast.success(formatted);
     }
     setTimeout(() => setFeedback(null), 4500);
   };
@@ -913,308 +916,336 @@ export const CustomersPage: React.FC = () => {
                   <span>{feedback.message}</span>
                 </div>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Customer Code *
-                  </label>
-                  <Input
-                    type="text"
-                    required
-                    placeholder="e.g. CUST-00101"
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value.toUpperCase() })
-                    }
-                    className="text-xs"
-                  />
-                </div>
+              <div className="space-y-4">
+                {/* 1. Essential Basic Information */}
+                <FormSection title="Basic Information">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Customer Code *
+                      </label>
+                      <Input
+                        type="text"
+                        required
+                        placeholder="e.g. CUST-00101"
+                        value={formData.code}
+                        onChange={(e) =>
+                          setFormData({ ...formData, code: e.target.value.toUpperCase() })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Customer / Pharmacy Name *
-                  </label>
-                  <Input
-                    type="text"
-                    required
-                    placeholder="e.g. Al-Shifa Pharmacy & Stores"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    className="text-xs"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Customer / Pharmacy Name *
+                      </label>
+                      <Input
+                        type="text"
+                        required
+                        placeholder="e.g. Al-Shifa Pharmacy & Stores"
+                        value={formData.name}
+                        onChange={(e) =>
+                          setFormData({ ...formData, name: e.target.value })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Customer Type
-                  </label>
-                  <select
-                    value={formData.customerType}
-                    onChange={(e) =>
-                      setFormData({ ...formData, customerType: e.target.value as CustomerType })
-                    }
-                    className="w-full h-9 px-3 rounded-md border border-surface-border bg-white text-xs text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  >
-                    <option value="RETAIL_PHARMACY">Retail Pharmacy</option>
-                    <option value="HOSPITAL">Hospital / Clinic</option>
-                    <option value="DISTRIBUTOR">Sub-Distributor</option>
-                    <option value="WALK_IN">Walk-In Cash Customer</option>
-                    <option value="INSTITUTIONAL">Institutional / NGO</option>
-                  </select>
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Customer Type
+                      </label>
+                      <select
+                        value={formData.customerType}
+                        onChange={(e) =>
+                          setFormData({ ...formData, customerType: e.target.value as CustomerType })
+                        }
+                        className="w-full h-9 px-3 rounded-md border border-surface-border bg-white text-xs text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                      >
+                        <option value="RETAIL_PHARMACY">Retail Pharmacy</option>
+                        <option value="HOSPITAL">Hospital / Clinic</option>
+                        <option value="DISTRIBUTOR">Sub-Distributor</option>
+                        <option value="WALK_IN">Walk-In Cash Customer</option>
+                        <option value="INSTITUTIONAL">Institutional / NGO</option>
+                      </select>
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Contact Person
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. Dr. Tariq Mehmood"
-                    value={formData.contactPerson || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, contactPerson: e.target.value })
-                    }
-                    className="text-xs"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Contact Person
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. Dr. Tariq Mehmood"
+                        value={formData.contactPerson || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, contactPerson: e.target.value })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Phone / Mobile
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 0300-1234567"
-                    value={formData.phone || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone: e.target.value })
-                    }
-                    className="text-xs"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Phone / Mobile
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. 0300-1234567"
+                        value={formData.phone || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, phone: e.target.value })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Email Address
-                  </label>
-                  <Input
-                    type="email"
-                    placeholder="e.g. orders@alshifa.pk"
-                    value={formData.email || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    className="text-xs"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        City
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. Karachi"
+                        value={formData.city || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, city: e.target.value })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
 
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Physical Address
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. Shop # 12, Main Commercial Market"
-                    value={formData.address || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, address: e.target.value })
-                    }
-                    className="text-xs"
-                  />
-                </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Physical Address
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. Shop # 12, Main Commercial Market"
+                        value={formData.address || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, address: e.target.value })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    City
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. Karachi"
-                    value={formData.city || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, city: e.target.value })
-                    }
-                    className="text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Drug Sale License (DSL) No.
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. DSL-KAR-99821"
-                    value={formData.drugSaleLicenseNo || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, drugSaleLicenseNo: e.target.value })
-                    }
-                    className="text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    NTN Number
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 1234567-8"
-                    value={formData.ntn || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, ntn: e.target.value })
-                    }
-                    className="text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Sales Tax (STRN)
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 11-22-3333-444"
-                    value={formData.strn || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, strn: e.target.value })
-                    }
-                    className="text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Credit Period (Days)
-                  </label>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="30"
-                    value={formData.creditDays}
-                    onChange={(e) =>
-                      setFormData({ ...formData, creditDays: Number(e.target.value) })
-                    }
-                    className="text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Credit Limit (PKR)
-                  </label>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="100000"
-                    value={formData.creditLimit}
-                    onChange={(e) =>
-                      setFormData({ ...formData, creditLimit: Number(e.target.value) })
-                    }
-                    className="text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Default Salesman
-                  </label>
-                  <select
-                    value={formData.defaultSalesmanId || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, defaultSalesmanId: e.target.value })
-                    }
-                    className="w-full h-9 px-3 rounded-md border border-surface-border bg-white text-xs text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  >
-                    <option value="">-- No Salesman Assigned --</option>
-                    {salesmenList.map((sm) => (
-                      <option key={sm.id} value={sm.id}>
-                        {sm.name} ({sm.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Sales Route / Territory
-                  </label>
-                  <select
-                    value={formData.routeId || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, routeId: e.target.value })
-                    }
-                    className="w-full h-9 px-3 rounded-md border border-surface-border bg-white text-xs text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  >
-                    <option value="">-- No Route Assigned --</option>
-                    {routesList.map((rt) => (
-                      <option key={rt.id} value={rt.id}>
-                        {rt.name} ({rt.code}){rt.city ? ` - ${rt.city}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Default Discount %
-                  </label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    placeholder="0"
-                    value={formData.defaultDiscountPercentage}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        defaultDiscountPercentage: Number(e.target.value),
-                      })
-                    }
-                    className="text-xs"
-                  />
-                </div>
-
-                {!editingCustomer && (
-                  <div>
-                    <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                      Opening Balance Receivable (PKR)
-                    </label>
-                    <Input
-                      type="number"
-                      min="0"
-                      placeholder="0.00"
-                      value={formData.openingBalance}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          openingBalance: Number(e.target.value),
-                        })
-                      }
-                      className="text-xs"
-                    />
-                    <p className="text-[10px] text-charcoal-500 mt-0.5">
-                      Creates an initial OPENING_BALANCE ledger entry
-                    </p>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Email Address
+                      </label>
+                      <Input
+                        type="email"
+                        placeholder="e.g. orders@alshifa.pk"
+                        value={formData.email || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, email: e.target.value })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
                   </div>
-                )}
+                </FormSection>
 
-                <div className="flex items-center gap-4 sm:col-span-2 pt-2">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-charcoal-700">
-                    <input
-                      type="checkbox"
-                      checked={formData.isTaxExempt}
-                      onChange={(e) =>
-                        setFormData({ ...formData, isTaxExempt: e.target.checked })
-                      }
-                      className="rounded border-surface-border text-brand-600 focus:ring-brand-500"
-                    />
-                    <span>Tax Exempt Customer (0% GST on all invoices)</span>
-                  </label>
+                {/* 2. License & Tax Registration (Progressive Disclosure) */}
+                <FormSection
+                  title="License & Tax Registration"
+                  isCollapsible
+                  defaultExpanded={Boolean(editingCustomer && (formData.ntn || formData.strn || formData.drugSaleLicenseNo))}
+                  description="Drug sale license, NTN & tax exemption"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Drug Sale License (DSL) No.
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. DSL-KAR-99821"
+                        value={formData.drugSaleLicenseNo || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, drugSaleLicenseNo: e.target.value })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
 
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        NTN Number
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. 1234567-8"
+                        value={formData.ntn || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, ntn: e.target.value })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Sales Tax (STRN)
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. 11-22-3333-444"
+                        value={formData.strn || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, strn: e.target.value })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-4 sm:col-span-3 pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-charcoal-700">
+                        <input
+                          type="checkbox"
+                          checked={formData.isTaxExempt}
+                          onChange={(e) =>
+                            setFormData({ ...formData, isTaxExempt: e.target.checked })
+                          }
+                          className="rounded border-surface-border text-brand-600 focus:ring-brand-500"
+                        />
+                        <span>Tax Exempt Customer (0% GST on all invoices)</span>
+                      </label>
+                    </div>
+                  </div>
+                </FormSection>
+
+                {/* 3. Credit Terms & Sales Assignment (Progressive Disclosure) */}
+                <FormSection
+                  title="Credit Terms & Route Assignment"
+                  isCollapsible
+                  defaultExpanded={Boolean(editingCustomer && (formData.creditLimit > 0 || formData.routeId || formData.defaultSalesmanId))}
+                  description="Credit period, limits, route and sales agent"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Credit Period (Days)
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="30"
+                        value={formData.creditDays}
+                        onChange={(e) =>
+                          setFormData({ ...formData, creditDays: Number(e.target.value) })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Credit Limit (PKR)
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="100000"
+                        value={formData.creditLimit}
+                        onChange={(e) =>
+                          setFormData({ ...formData, creditLimit: Number(e.target.value) })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Default Salesman
+                      </label>
+                      <select
+                        value={formData.defaultSalesmanId || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, defaultSalesmanId: e.target.value })
+                        }
+                        className="w-full h-9 px-3 rounded-md border border-surface-border bg-white text-xs text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                      >
+                        <option value="">-- No Salesman Assigned --</option>
+                        {salesmenList.map((sm) => (
+                          <option key={sm.id} value={sm.id}>
+                            {sm.name} ({sm.code})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Sales Route / Territory
+                      </label>
+                      <select
+                        value={formData.routeId || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, routeId: e.target.value })
+                        }
+                        className="w-full h-9 px-3 rounded-md border border-surface-border bg-white text-xs text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                      >
+                        <option value="">-- No Route Assigned --</option>
+                        {routesList.map((rt) => (
+                          <option key={rt.id} value={rt.id}>
+                            {rt.name} ({rt.code}){rt.city ? ` - ${rt.city}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Default Discount %
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        placeholder="0"
+                        value={formData.defaultDiscountPercentage}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            defaultDiscountPercentage: Number(e.target.value),
+                          })
+                        }
+                        className="text-xs"
+                      />
+                    </div>
+
+                    {!editingCustomer && (
+                      <div>
+                        <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                          Opening Balance Receivable (PKR)
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="0.00"
+                          value={formData.openingBalance}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              openingBalance: Number(e.target.value),
+                            })
+                          }
+                          className="text-xs"
+                        />
+                        <p className="text-[10px] text-charcoal-500 mt-0.5">
+                          Creates an initial OPENING_BALANCE ledger entry
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </FormSection>
+
+                {/* Account Status */}
+                <div className="pt-1">
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-charcoal-700">
                     <input
                       type="checkbox"
