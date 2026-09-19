@@ -35,6 +35,7 @@ import {
   ProductCategory,
   UnitOfMeasurement,
 } from '../api';
+import { formatApiErrorMessage } from '../utils';
 
 export const ProductsPage: React.FC = () => {
   // --- Product List State ---
@@ -68,12 +69,13 @@ export const ProductsPage: React.FC = () => {
   const [editingBatch, setEditingBatch] = useState<Partial<Batch> | null>(null);
   const [isSavingBatch, setIsSavingBatch] = useState(false);
 
-  const showFeedback = (type: 'success' | 'error', message: string) => {
-    setFeedback({ type, message });
+  const showFeedback = (type: 'success' | 'error', message: string | unknown) => {
+    const formatted = typeof message === 'string' ? formatApiErrorMessage(message) : formatApiErrorMessage(message);
+    setFeedback({ type, message: formatted });
     if (type === 'error') {
-      toast.error(message);
+      toast.error(formatted);
     } else {
-      toast.success(message);
+      toast.success(formatted);
     }
     setTimeout(() => setFeedback(null), 4000);
   };
@@ -109,7 +111,7 @@ export const ProductsPage: React.FC = () => {
       setProducts(res.items);
       setTotalProducts(res.meta.total);
     } catch (err: unknown) {
-      showFeedback('error', (err as Error)?.message || 'Failed to load products');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to load products'));
     } finally {
       setIsLoading(false);
     }
@@ -122,7 +124,7 @@ export const ProductsPage: React.FC = () => {
       const batches = await batchesApi.getBatchesByProduct(productId);
       setProductBatches(batches);
     } catch (err: unknown) {
-      showFeedback('error', (err as Error)?.message || 'Failed to load batches');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to load batches'));
     } finally {
       setIsLoadingBatches(false);
     }
@@ -194,7 +196,7 @@ export const ProductsPage: React.FC = () => {
       setEditingProduct(null);
       loadProducts();
     } catch (err: unknown) {
-      showFeedback('error', (err as Error)?.message || 'Failed to save product.');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to save product.'));
     } finally {
       setIsSavingProduct(false);
     }
@@ -251,7 +253,7 @@ export const ProductsPage: React.FC = () => {
       loadProductBatches(selectedProduct.id);
       loadProducts();
     } catch (err: unknown) {
-      showFeedback('error', (err as Error)?.message || 'Failed to save batch.');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to save batch.'));
     } finally {
       setIsSavingBatch(false);
     }
@@ -270,7 +272,7 @@ export const ProductsPage: React.FC = () => {
         setSelectedProduct(updated);
       }
     } catch (err: unknown) {
-      showFeedback('error', (err as Error)?.message || 'Failed to toggle status.');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to toggle status.'));
     }
   };
 

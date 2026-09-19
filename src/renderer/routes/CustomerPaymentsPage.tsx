@@ -26,6 +26,7 @@ import { Button } from '../components/ui/Button';
 import { Pagination } from '../components/ui/Pagination';
 import { Combobox, ComboboxOption } from '../components/ui/Combobox';
 import { toast } from '../components/ui/Toast';
+import { formatApiErrorMessage } from '../utils';
 import {
   customerPaymentsApi,
   CustomerPayment,
@@ -195,12 +196,13 @@ export const CustomerPaymentsPage: React.FC = () => {
     message: string;
   } | null>(null);
 
-  const showFeedback = (type: 'success' | 'error', message: string) => {
-    setFeedback({ type, message });
+  const showFeedback = (type: 'success' | 'error', message: string | unknown) => {
+    const formatted = type === 'error' ? formatApiErrorMessage(message) : (typeof message === 'string' ? message : String(message));
+    setFeedback({ type, message: formatted });
     if (type === 'error') {
-      toast.error(message);
+      toast.error(formatted);
     } else {
-      toast.success(message);
+      toast.success(formatted);
     }
     setTimeout(() => setFeedback(null), 4500);
   };

@@ -71,7 +71,7 @@ export const CustomersPage: React.FC = () => {
   } | null>(null);
 
   const showFeedback = (type: 'success' | 'error', message: string | unknown) => {
-    const formatted = typeof message === 'string' ? message : formatApiErrorMessage(message);
+    const formatted = type === 'error' ? formatApiErrorMessage(message) : (typeof message === 'string' ? message : String(message));
     setFeedback({ type, message: formatted });
     if (type === 'error') {
       toast.error(formatted);

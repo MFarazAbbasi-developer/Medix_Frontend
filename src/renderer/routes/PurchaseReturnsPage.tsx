@@ -41,6 +41,7 @@ import {
   settingsApi,
   Warehouse,
 } from '../api';
+import { formatApiErrorMessage } from '../utils';
 import {
   DocumentPrintModal,
   PurchaseReturnPrintTemplate,
@@ -83,12 +84,13 @@ export const PurchaseReturnsPage: React.FC = () => {
     message: string;
   } | null>(null);
 
-  const showFeedback = (type: 'success' | 'error', message: string) => {
-    setFeedback({ type, message });
+  const showFeedback = (type: 'success' | 'error', message: string | unknown) => {
+    const formatted = typeof message === 'string' ? formatApiErrorMessage(message) : formatApiErrorMessage(message);
+    setFeedback({ type, message: formatted });
     if (type === 'error') {
-      toast.error(message);
+      toast.error(formatted);
     } else {
-      toast.success(message);
+      toast.success(formatted);
     }
     setTimeout(() => setFeedback(null), 4500);
   };
@@ -140,57 +142,47 @@ export const PurchaseReturnsPage: React.FC = () => {
         bonusReturnedQuantity: number;
         purchaseCost: number;
       }
+      }
     >
   >({});
 
-  // Common Return Form State
-  const [returnDate, setReturnDate] = useState<string>(
-    new Date().toISOString().split('T')[0],
-  );
-  const [returnReason, setReturnReason] = useState<PurchaseReturnReason>('DAMAGED_GOODS');
-  const [rgaNumber, setRgaNumber] = useState<string>('');
-  const [rgaDate, setRgaDate] = useState<string>('');
-  const [vendorCreditNoteNumber, setVendorCreditNoteNumber] = useState<string>('');
-  const [notes, setNotes] = useState<string>('');
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-
-  // Lifecycle Action Modals
-  // 1. Dispatch Modal
+  // Dispatch / Complete / Cancel Dialogs
   const [dispatchingReturn, setDispatchingReturn] = useState<PurchaseReturn | null>(null);
   const [dispatchRgaNumber, setDispatchRgaNumber] = useState<string>('');
   const [dispatchRgaDate, setDispatchRgaDate] = useState<string>('');
   const [dispatchNotes, setDispatchNotes] = useState<string>('');
   const [isDispatching, setIsDispatching] = useState<boolean>(false);
 
-  // 2. Complete Modal
   const [completingReturn, setCompletingReturn] = useState<PurchaseReturn | null>(null);
   const [completeVendorCreditNote, setCompleteVendorCreditNote] = useState<string>('');
   const [completeNotes, setCompleteNotes] = useState<string>('');
   const [isCompleting, setIsCompleting] = useState<boolean>(false);
 
-  // 3. Print Modals
-  const [viewingDebitNote, setViewingDebitNote] = useState<PurchaseReturn | null>(null);
-  const [viewingChallan, setViewingChallan] = useState<PurchaseReturn | null>(null);
-
-  // 4. Cancel Modal State
   const [cancellingReturn, setCancellingReturn] = useState<PurchaseReturn | null>(null);
   const [cancellationReason, setCancellationReason] = useState<string>('');
   const [isCancelling, setIsCancelling] = useState<boolean>(false);
 
-  // Load returns register
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Printing & Document Preview Modals
+  const [viewingDebitNote, setViewingDebitNote] = useState<PurchaseReturn | null>(null);
+  const [viewingChallan, setViewingChallan] = useState<PurchaseReturn | null>(null);
+
+  // Load Purchase Returns Register
   const loadReturns = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await purchaseReturnsApi.getPurchaseReturns({
+        page: currentPage,
+        limit: 15,
         search: search.trim() || undefined,
         reason: reasonFilter !== 'ALL' ? (reasonFilter as PurchaseReturnReason) : undefined,
         status: statusFilter !== 'ALL' ? (statusFilter as PurchaseReturnStatus) : undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-        page: currentPage,
-        limit: 20,
       });
-      setReturns(res.items || []);
+
+      setReturns(res.data || []);
       setTotalRecords(res.total || 0);
       setTotalPages(res.totalPages || 1);
       const sum =
@@ -198,7 +190,7 @@ export const PurchaseReturnsPage: React.FC = () => {
         (Number(res.summary?.totalCompletedReturn || 0) + Number(res.summary?.totalDispatchedReturn || 0));
       setTotalSum(sum);
     } catch (err: any) {
-      showFeedback('error', err.response?.data?.message || 'Failed to load purchase returns');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to load purchase returns'));
     } finally {
       setIsLoading(false);
     }
@@ -352,7 +344,7 @@ export const PurchaseReturnsPage: React.FC = () => {
         });
         setGrnItemRows(initialRows);
       } catch (err: any) {
-        showFeedback('error', err.response?.data?.message || 'Failed to load returnable items for GRN');
+        showFeedback('error', formatApiErrorMessage(err, 'Failed to load returnable items for GRN'));
       } finally {
         setLoadingReturnable(false);
       }
@@ -372,7 +364,7 @@ export const PurchaseReturnsPage: React.FC = () => {
       });
       setReturnableBatches(data);
     } catch (err: any) {
-      showFeedback('error', err.response?.data?.message || 'Failed to search returnable batches');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to search returnable batches'));
     } finally {
       setLoadingDirectBatches(false);
     }
@@ -560,7 +552,7 @@ export const PurchaseReturnsPage: React.FC = () => {
         resetCreateForm();
         loadReturns();
       } catch (err: any) {
-        showFeedback('error', err.response?.data?.message || 'Failed to create purchase return');
+        showFeedback('error', formatApiErrorMessage(err, 'Failed to create purchase return'));
       } finally {
         setIsSubmitting(false);
       }
@@ -617,7 +609,7 @@ export const PurchaseReturnsPage: React.FC = () => {
         resetCreateForm();
         loadReturns();
       } catch (err: any) {
-        showFeedback('error', err.response?.data?.message || 'Failed to create purchase return');
+        showFeedback('error', formatApiErrorMessage(err, 'Failed to create purchase return'));
       } finally {
         setIsSubmitting(false);
       }
@@ -661,7 +653,7 @@ export const PurchaseReturnsPage: React.FC = () => {
       loadReturns();
       setViewingChallan(dispatched);
     } catch (err: any) {
-      showFeedback('error', err.response?.data?.message || 'Failed to dispatch purchase return');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to dispatch purchase return'));
     } finally {
       setIsDispatching(false);
     }
@@ -689,7 +681,7 @@ export const PurchaseReturnsPage: React.FC = () => {
       loadReturns();
       setViewingDebitNote(completed);
     } catch (err: any) {
-      showFeedback('error', err.response?.data?.message || 'Failed to complete purchase return');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to complete purchase return'));
     } finally {
       setIsCompleting(false);
     }
@@ -717,7 +709,7 @@ export const PurchaseReturnsPage: React.FC = () => {
       setCancellationReason('');
       loadReturns();
     } catch (err: any) {
-      showFeedback('error', err.response?.data?.message || 'Failed to cancel purchase return');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to cancel purchase return'));
     } finally {
       setIsCancelling(false);
     }

@@ -33,6 +33,7 @@ import {
   settingsApi,
   Supplier,
 } from '../api';
+import { formatApiErrorMessage } from '../utils';
 import {
   DocumentPrintModal,
   SupplierPaymentVoucherTemplate,
@@ -65,12 +66,13 @@ export const SupplierPaymentsPage: React.FC = () => {
     message: string;
   } | null>(null);
 
-  const showFeedback = (type: 'success' | 'error', message: string) => {
-    setFeedback({ type, message });
+  const showFeedback = (type: 'success' | 'error', message: string | unknown) => {
+    const formatted = typeof message === 'string' ? formatApiErrorMessage(message) : formatApiErrorMessage(message);
+    setFeedback({ type, message: formatted });
     if (type === 'error') {
-      toast.error(message);
+      toast.error(formatted);
     } else {
-      toast.success(message);
+      toast.success(formatted);
     }
     setTimeout(() => setFeedback(null), 4500);
   };
@@ -111,21 +113,21 @@ export const SupplierPaymentsPage: React.FC = () => {
   const [cancellationReason, setCancellationReason] = useState<string>('');
   const [isCancelling, setIsCancelling] = useState<boolean>(false);
 
-  // Load Payments list
+  // Fetch payments register
   const loadPayments = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await supplierPaymentsApi.getSupplierPayments({
+        page: currentPage,
+        limit: 15,
         search: search.trim() || undefined,
         paymentMethod: methodFilter !== 'ALL' ? (methodFilter as PaymentMethod) : undefined,
         status: statusFilter !== 'ALL' ? (statusFilter as SupplierPaymentStatus) : undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-        page: currentPage,
-        limit: 20,
       });
 
-      setPayments(res.items || []);
+      setPayments(res.data || res.items || []);
       setTotalRecords(res.total || 0);
       setTotalPages(res.totalPages || 1);
       setSummary({
@@ -134,7 +136,7 @@ export const SupplierPaymentsPage: React.FC = () => {
         totalUnallocatedAmount: Number(res.summary?.totalUnallocatedAmount || 0),
       });
     } catch (err: any) {
-      showFeedback('error', err.response?.data?.message || 'Failed to load supplier payments register');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to load supplier payments register'));
     } finally {
       setIsLoading(false);
     }
@@ -223,7 +225,7 @@ export const SupplierPaymentsPage: React.FC = () => {
         setUnpaidGrns(grns || []);
         setAllocations({});
       } catch (err: any) {
-        showFeedback('error', err.response?.data?.message || 'Failed to load supplier outstanding GRNs');
+        showFeedback('error', formatApiErrorMessage(err, 'Failed to load supplier outstanding GRNs'));
       } finally {
         setLoadingGrns(false);
       }
@@ -329,7 +331,7 @@ export const SupplierPaymentsPage: React.FC = () => {
       // Open details dialog
       setViewingPayment(created);
     } catch (err: any) {
-      showFeedback('error', err.response?.data?.message || 'Failed to post supplier payment voucher');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to post supplier payment voucher'));
     } finally {
       setIsSubmitting(false);
     }
@@ -353,7 +355,7 @@ export const SupplierPaymentsPage: React.FC = () => {
       setCancellationReason('');
       loadPayments();
     } catch (err: any) {
-      showFeedback('error', err.response?.data?.message || 'Failed to cancel supplier payment voucher');
+      showFeedback('error', formatApiErrorMessage(err, 'Failed to cancel supplier payment voucher'));
     } finally {
       setIsCancelling(false);
     }

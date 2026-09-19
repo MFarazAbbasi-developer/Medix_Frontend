@@ -58,6 +58,7 @@ import {
   PrintableSalesInvoice,
 } from '../components/printing';
 import { usePermission } from '../hooks/usePermission';
+import { formatApiErrorMessage } from '../utils';
 import { clsx } from 'clsx';
 
 export interface CartItem {
@@ -187,12 +188,13 @@ export const SalesPage: React.FC = () => {
   const cartItemsRef = useRef<CartItem[]>(cartItems);
   cartItemsRef.current = cartItems;
 
-  const showFeedback = (type: 'success' | 'error', message: string) => {
-    setFeedback({ type, message });
+  const showFeedback = (type: 'success' | 'error', message: string | unknown) => {
+    const formatted = type === 'error' ? formatApiErrorMessage(message) : (typeof message === 'string' ? message : String(message));
+    setFeedback({ type, message: formatted });
     if (type === 'error') {
-      toast.error(message);
+      toast.error(formatted);
     } else {
-      toast.success(message);
+      toast.success(formatted);
     }
     setTimeout(() => setFeedback(null), 4500);
   };

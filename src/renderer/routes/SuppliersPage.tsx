@@ -18,7 +18,9 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Pagination } from '../components/ui/Pagination';
+import { FormSection } from '../components/ui/FormSection';
 import { toast } from '../components/ui/Toast';
+import { formatApiErrorMessage } from '../utils';
 import {
   getSuppliers,
   createSupplier,
@@ -45,12 +47,13 @@ export const SuppliersPage: React.FC = () => {
     message: string;
   } | null>(null);
 
-  const showFeedback = (type: 'success' | 'error', message: string) => {
-    setFeedback({ type, message });
+  const showFeedback = (type: 'success' | 'error', message: string | unknown) => {
+    const formatted = type === 'error' ? formatApiErrorMessage(message) : (typeof message === 'string' ? message : String(message));
+    setFeedback({ type, message: formatted });
     if (type === 'error') {
-      toast.error(message);
+      toast.error(formatted);
     } else {
-      toast.success(message);
+      toast.success(formatted);
     }
     setTimeout(() => setFeedback(null), 4500);
   };
@@ -530,174 +533,212 @@ export const SuppliersPage: React.FC = () => {
                   <span>{feedback.message}</span>
                 </div>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Supplier Code *
-                  </label>
-                  <Input
-                    required
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    placeholder="e.g. SUP-001"
-                    className="text-xs h-9"
-                  />
-                </div>
+              <div className="space-y-4">
+                {/* 1. Essential Basic Information */}
+                <FormSection title="Basic Information">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Supplier Code *
+                      </label>
+                      <Input
+                        required
+                        value={formData.code}
+                        onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                        placeholder="e.g. SUP-001"
+                        className="text-xs h-9"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Supplier Name *
-                  </label>
-                  <Input
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="e.g. Getz Pharma Distribution"
-                    className="text-xs h-9"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Supplier Name *
+                      </label>
+                      <Input
+                        required
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="e.g. Getz Pharma Distribution"
+                        className="text-xs h-9"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Contact Person
-                  </label>
-                  <Input
-                    value={formData.contactPerson}
-                    onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-                    placeholder="e.g. Muhammad Ali"
-                    className="text-xs h-9"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Contact Person
+                      </label>
+                      <Input
+                        value={formData.contactPerson}
+                        onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
+                        placeholder="e.g. Muhammad Ali"
+                        className="text-xs h-9"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Phone / Mobile
-                  </label>
-                  <Input
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="e.g. 0300-1234567"
-                    className="text-xs h-9"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Phone / Mobile
+                      </label>
+                      <Input
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        placeholder="e.g. 0300-1234567"
+                        className="text-xs h-9"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Email Address
-                  </label>
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="orders@supplier.com"
-                    className="text-xs h-9"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        City
+                      </label>
+                      <Input
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        placeholder="e.g. Karachi"
+                        className="text-xs h-9"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    City
-                  </label>
-                  <Input
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    placeholder="e.g. Karachi"
-                    className="text-xs h-9"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Email Address
+                      </label>
+                      <Input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        placeholder="orders@supplier.com"
+                        className="text-xs h-9"
+                      />
+                    </div>
 
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Physical Address
-                  </label>
-                  <Input
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="Warehouse / Office address"
-                    className="text-xs h-9"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    National Tax Number (NTN)
-                  </label>
-                  <Input
-                    value={formData.ntn}
-                    onChange={(e) => setFormData({ ...formData, ntn: e.target.value })}
-                    placeholder="e.g. 1234567-8"
-                    className="text-xs h-9"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Drug Sale License No.
-                  </label>
-                  <Input
-                    value={formData.drugLicenseNo}
-                    onChange={(e) => setFormData({ ...formData, drugLicenseNo: e.target.value })}
-                    placeholder="e.g. DSL-KHI-9921"
-                    className="text-xs h-9"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Credit Period (Days)
-                  </label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={formData.creditDays}
-                    onChange={(e) => setFormData({ ...formData, creditDays: parseInt(e.target.value, 10) || 0 })}
-                    className="text-xs h-9"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Credit Limit (PKR)
-                  </label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={formData.creditLimit}
-                    onChange={(e) => setFormData({ ...formData, creditLimit: parseFloat(e.target.value) || 0 })}
-                    placeholder="0 for unlimited"
-                    className="text-xs h-9"
-                  />
-                </div>
-
-                {!editingSupplier && (
-                  <div>
-                    <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                      Initial Opening Balance (PKR)
-                    </label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={formData.openingBalance}
-                      onChange={(e) => setFormData({ ...formData, openingBalance: parseFloat(e.target.value) || 0 })}
-                      placeholder="e.g. 50000"
-                      className="text-xs h-9"
-                    />
-                    <p className="text-[10px] text-charcoal-400 mt-1">
-                      Automatically posts an OPENING_BALANCE ledger entry
-                    </p>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Physical Address
+                      </label>
+                      <Input
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        placeholder="Warehouse / Office address"
+                        className="text-xs h-9"
+                      />
+                    </div>
                   </div>
-                )}
+                </FormSection>
 
-                <div className="flex items-center gap-2 pt-4">
-                  <input
-                    type="checkbox"
-                    id="isActive"
-                    checked={formData.isActive}
-                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                    className="rounded border-surface-border text-brand-600 focus:ring-brand-500 h-4 w-4"
-                  />
-                  <label htmlFor="isActive" className="text-xs font-medium text-charcoal-700">
-                    Active Supplier
+                {/* 2. Tax & Regulatory Registration (Progressive Disclosure) */}
+                <FormSection
+                  title="Tax & License Details"
+                  isCollapsible
+                  defaultExpanded={Boolean(editingSupplier && (formData.ntn || formData.strn || formData.drugLicenseNo))}
+                  description="NTN, STRN and drug license"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        National Tax Number (NTN)
+                      </label>
+                      <Input
+                        value={formData.ntn}
+                        onChange={(e) => setFormData({ ...formData, ntn: e.target.value })}
+                        placeholder="e.g. 1234567-8"
+                        className="text-xs h-9"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Sales Tax (STRN)
+                      </label>
+                      <Input
+                        value={formData.strn}
+                        onChange={(e) => setFormData({ ...formData, strn: e.target.value })}
+                        placeholder="e.g. 11-22-3333-444"
+                        className="text-xs h-9"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Drug Sale License No.
+                      </label>
+                      <Input
+                        value={formData.drugLicenseNo}
+                        onChange={(e) => setFormData({ ...formData, drugLicenseNo: e.target.value })}
+                        placeholder="e.g. DSL-KHI-9921"
+                        className="text-xs h-9"
+                      />
+                    </div>
+                  </div>
+                </FormSection>
+
+                {/* 3. Credit Terms & Payables (Progressive Disclosure) */}
+                <FormSection
+                  title="Payment & Credit Terms"
+                  isCollapsible
+                  defaultExpanded={Boolean(editingSupplier && (formData.creditLimit > 0 || formData.creditDays !== 30))}
+                  description="Payment period and credit limits"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Credit Period (Days)
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={formData.creditDays}
+                        onChange={(e) => setFormData({ ...formData, creditDays: parseInt(e.target.value, 10) || 0 })}
+                        className="text-xs h-9"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                        Credit Limit (PKR)
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={formData.creditLimit}
+                        onChange={(e) => setFormData({ ...formData, creditLimit: parseFloat(e.target.value) || 0 })}
+                        placeholder="0 for unlimited"
+                        className="text-xs h-9"
+                      />
+                    </div>
+
+                    {!editingSupplier && (
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                          Initial Opening Balance (PKR)
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={formData.openingBalance}
+                          onChange={(e) => setFormData({ ...formData, openingBalance: parseFloat(e.target.value) || 0 })}
+                          placeholder="e.g. 50000"
+                          className="text-xs h-9"
+                        />
+                        <p className="text-[10px] text-charcoal-400 mt-1">
+                          Automatically posts an OPENING_BALANCE ledger entry
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </FormSection>
+
+                {/* Account Status */}
+                <div className="pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-charcoal-700">
+                    <input
+                      type="checkbox"
+                      id="isActive"
+                      checked={formData.isActive}
+                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                      className="rounded border-surface-border text-brand-600 focus:ring-brand-500 h-4 w-4"
+                    />
+                    <span>Active Supplier</span>
                   </label>
                 </div>
               </div>

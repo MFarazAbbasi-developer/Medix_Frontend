@@ -37,6 +37,7 @@ import {
   settingsApi,
   Warehouse,
 } from '../api';
+import { formatApiErrorMessage } from '../utils';
 import {
   DocumentPrintModal,
   SalesReturnPrintTemplate,
@@ -45,6 +46,8 @@ import {
 } from '../components/printing';
 
 export const SalesReturnsPage: React.FC = () => {
+  const location = useLocation();
+
   const [returns, setReturns] = useState<SalesReturn[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
@@ -71,12 +74,13 @@ export const SalesReturnsPage: React.FC = () => {
     message: string;
   } | null>(null);
 
-  const showFeedback = (type: 'success' | 'error', message: string) => {
-    setFeedback({ type, message });
+  const showFeedback = (type: 'success' | 'error', message: string | unknown) => {
+    const formatted = type === 'error' ? formatApiErrorMessage(message) : (typeof message === 'string' ? message : String(message));
+    setFeedback({ type, message: formatted });
     if (type === 'error') {
-      toast.error(message);
+      toast.error(formatted);
     } else {
-      toast.success(message);
+      toast.success(formatted);
     }
     setTimeout(() => setFeedback(null), 4500);
   };
