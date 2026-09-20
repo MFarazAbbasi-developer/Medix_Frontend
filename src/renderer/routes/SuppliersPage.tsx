@@ -676,7 +676,7 @@ export const SuppliersPage: React.FC = () => {
                 <FormSection
                   title="Payment & Credit Terms"
                   isCollapsible
-                  defaultExpanded={Boolean(editingSupplier && (formData.creditLimit > 0 || formData.creditDays !== 30))}
+                  defaultExpanded={Boolean(editingSupplier && (((formData.creditLimit ?? 0) > 0) || formData.creditDays !== 30))}
                   description="Payment period and credit limits"
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

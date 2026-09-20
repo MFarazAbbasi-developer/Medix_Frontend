@@ -46,8 +46,6 @@ import {
 } from '../components/printing';
 
 export const SalesReturnsPage: React.FC = () => {
-  const location = useLocation();
-
   const [returns, setReturns] = useState<SalesReturn[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
@@ -965,28 +963,28 @@ export const SalesReturnsPage: React.FC = () => {
                       onChange={(e) => setReturnReason(e.target.value as ReturnReason)}
                       className="w-full text-xs rounded-md border border-charcoal-300 bg-white px-3 py-2 text-charcoal-900 font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     >
-                      <option value="CUSTOMER_RETURN">Customer Return</option>
-                      <option value="DEFECTIVE_PRODUCT">Defective Product</option>
-                      <option value="DAMAGED_IN_TRANSIT">Damaged In Transit</option>
-                      <option value="EXPIRED_NEAR_EXPIRY">Expired / Near Expiry</option>
-                      <option value="WRONG_DISPENSATION">Wrong Dispensation</option>
-                      <option value="REGULATORY_RECALL">Regulatory Recall</option>
+                      <option value="CUSTOMER_RETURN">Customer Return (Standard Return)</option>
+                      <option value="DEFECTIVE_PRODUCT">Defective / Damaged Medicine</option>
+                      <option value="DAMAGED_IN_TRANSIT">Damaged in Transit / Delivery</option>
+                      <option value="EXPIRED_NEAR_EXPIRY">Expired / Near Expiry Batch</option>
+                      <option value="WRONG_DISPENSATION">Wrong Item Dispensed</option>
+                      <option value="REGULATORY_RECALL">Company / Drug Authority Recall</option>
                       <option value="OTHER">Other Reason</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-charcoal-800 mb-1.5">
-                      Refund Mode <span className="text-rose-500">*</span>
+                      Refund Method <span className="text-rose-500">*</span>
                     </label>
                     <select
                       value={refundMode}
                       onChange={(e) => setRefundMode(e.target.value as ReturnRefundMode)}
                       className="w-full text-xs rounded-md border border-charcoal-300 bg-white px-3 py-2 text-charcoal-900 font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     >
-                      <option value="CREDIT_ACCOUNT">Credit Account (Invoice Offset / Store Credit)</option>
-                      <option value="CASH_REFUND">Immediate Cash Refund Payout</option>
-                      <option value="BANK_TRANSFER">Immediate Bank Transfer Payout</option>
+                      <option value="CREDIT_ACCOUNT">Credit to Customer Khata (Offset Invoice Balance)</option>
+                      <option value="CASH_REFUND">Cash Refund (Physical Cash Return)</option>
+                      <option value="BANK_TRANSFER">Bank Transfer Payout</option>
                     </select>
                   </div>
 

@@ -1616,7 +1616,7 @@ export const CustomerPaymentsPage: React.FC = () => {
                 />
                 {pdcCustomerObj && (
                   <div className="mt-1 flex items-center gap-4 text-[11px] text-charcoal-500">
-                    <span>Outstanding Receivable: <strong className="text-charcoal-900 font-mono">Rs. {Number(pdcCustomerObj.currentBalance).toFixed(2)}</strong></span>
+                    <span>Customer Balance (Udhaar): <strong className="text-charcoal-900 font-mono">Rs. {Number(pdcCustomerObj.currentBalance).toFixed(2)}</strong></span>
                     {pdcCustomerObj.phone && <span>Phone: {pdcCustomerObj.phone}</span>}
                   </div>
                 )}
@@ -2313,7 +2313,7 @@ export const CustomerPaymentsPage: React.FC = () => {
                 />
                 {selectedCustomer && (
                   <div className="mt-1 flex items-center gap-4 text-[11px] text-charcoal-500">
-                    <span>Current Balance: <strong className="text-charcoal-900 font-mono">Rs. {Number(selectedCustomer.currentBalance).toFixed(2)}</strong></span>
+                    <span>Customer Balance (Udhaar): <strong className="text-charcoal-900 font-mono">Rs. {Number(selectedCustomer.currentBalance).toFixed(2)}</strong></span>
                     {selectedCustomer.phone && <span>Phone: {selectedCustomer.phone}</span>}
                   </div>
                 )}

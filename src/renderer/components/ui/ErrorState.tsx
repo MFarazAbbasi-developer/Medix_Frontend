@@ -10,6 +10,7 @@ export interface ErrorStateProps {
   message?: string;
   error?: unknown;
   onRetry?: () => void;
+  retryText?: string;
   className?: string;
   compact?: boolean;
 }
@@ -19,6 +20,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   message,
   error,
   onRetry,
+  retryText = 'Retry',
   className,
   compact = false,
 }) => {
@@ -59,7 +61,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
           className="mt-1 gap-1.5 border-status-error-border text-status-error-text hover:bg-status-error-bg"
         >
           <RefreshCw className="h-3.5 w-3.5" />
-          <span>Try Again</span>
+          <span>{retryText}</span>
         </Button>
       )}
     </div>

@@ -42,12 +42,10 @@ import {
   Batch,
 } from '../api';
 
-import { usePermission } from '../hooks/usePermission';
 import { formatApiErrorMessage } from '../utils';
 
 export const InventoryPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'summary' | 'ledger' | 'adjustments' | 'fefo'>('summary');
-  const { isAdmin } = usePermission();
 
   // --- Warehouses State ---
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -673,21 +671,19 @@ export const InventoryPage: React.FC = () => {
           <span>Stock Adjustments</span>
         </button>
 
-        {isAdmin && (
-          <button
-            type="button"
-            data-testid="tab-fefo"
-            onClick={() => setActiveTab('fefo')}
-            className={`pb-2 px-3 font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === 'fefo'
-                ? 'border-brand-500 text-brand-600'
-                : 'border-transparent text-charcoal-500 hover:text-charcoal-800'
-            }`}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>FEFO Allocation Simulator</span>
-          </button>
-        )}
+        <button
+          type="button"
+          data-testid="tab-fefo"
+          onClick={() => setActiveTab('fefo')}
+          className={`pb-2 px-3 font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
+            activeTab === 'fefo'
+              ? 'border-brand-500 text-brand-600'
+              : 'border-transparent text-charcoal-500 hover:text-charcoal-800'
+          }`}
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          <span>FEFO Allocation Simulator</span>
+        </button>
       </div>
 
       {/* ========================================================= */}
@@ -1492,11 +1488,11 @@ export const InventoryPage: React.FC = () => {
                     className="w-full px-2.5 py-1.5 text-xs bg-surface-card border border-surface-border rounded text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500"
                     required
                   >
-                    <option value="PHYSICAL_INVENTORY_VARIANCE">Physical Inventory Variance</option>
-                    <option value="INITIAL_COUNT">Initial Physical Count</option>
-                    <option value="DAMAGED_EXPIRED_DISPOSAL">Damaged / Expired Disposal</option>
-                    <option value="PILFERAGE_LOSS">Pilferage / Shrinkage Loss</option>
-                    <option value="CORRECTION">Manual Error Correction</option>
+                    <option value="PHYSICAL_INVENTORY_VARIANCE">Stock Count Difference (Physical Inventory Variance)</option>
+                    <option value="INITIAL_COUNT">Initial Stock Setup (Opening Physical Count)</option>
+                    <option value="DAMAGED_EXPIRED_DISPOSAL">Damaged / Expired Disposal (Damaged & Expired Goods)</option>
+                    <option value="PILFERAGE_LOSS">Theft / Pilferage Loss (Loss / Missing Stock)</option>
+                    <option value="CORRECTION">Manual Error Correction (Correction)</option>
                   </select>
                 </div>
               </div>

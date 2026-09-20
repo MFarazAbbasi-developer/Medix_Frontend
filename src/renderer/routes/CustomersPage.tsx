@@ -1121,7 +1121,7 @@ export const CustomersPage: React.FC = () => {
                 <FormSection
                   title="Credit Terms & Route Assignment"
                   isCollapsible
-                  defaultExpanded={Boolean(editingCustomer && (formData.creditLimit > 0 || formData.routeId || formData.defaultSalesmanId))}
+                  defaultExpanded={Boolean(editingCustomer && ((formData.creditLimit ?? 0) > 0 || formData.routeId || formData.defaultSalesmanId))}
                   description="Credit period, limits, route and sales agent"
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1327,7 +1327,7 @@ export const CustomersPage: React.FC = () => {
                 </div>
                 <div className="p-3 rounded-lg border border-surface-border bg-rose-50/50 border-rose-200">
                   <p className="text-[10px] font-semibold uppercase text-rose-700">
-                    Outstanding Balance
+                    Customer Balance (Udhaar)
                   </p>
                   <p className="text-base font-bold text-rose-700 mt-0.5">
                     PKR{' '}

@@ -753,7 +753,7 @@ export const SalesPage: React.FC = () => {
     if (cartItems.length === 0 || netTotal <= 0) return false;
 
     if (paymentMode === 'CASH') {
-      return tenderCashAmount >= netTotal;
+      return (tenderCashAmount || netTotal) >= netTotal;
     }
 
     if (paymentMode === 'CREDIT_ACCOUNT') {
@@ -942,14 +942,15 @@ export const SalesPage: React.FC = () => {
       if (!isParkDraft) {
         if (paymentMode === 'CASH') {
           finalPaymentMethod = 'CASH';
+          const cashAmt = tenderCashAmount > 0 ? tenderCashAmount : netTotal;
           paymentsPayload = [
             {
               paymentMethod: 'CASH',
               amount: netTotal,
               notes:
-                tenderCashAmount > netTotal
-                  ? `Tendered: PKR ${tenderCashAmount.toLocaleString()} (Change: PKR ${(
-                      tenderCashAmount - netTotal
+                cashAmt > netTotal
+                  ? `Tendered: PKR ${cashAmt.toLocaleString()} (Change: PKR ${(
+                      cashAmt - netTotal
                     ).toLocaleString()})`
                   : 'Cash payment tendered at POS checkout',
             },
@@ -1251,16 +1252,16 @@ export const SalesPage: React.FC = () => {
         </div>
       )}
 
-      {/* COMPACT TOP BAR: POS Billing, Customer Combobox, Warehouse, Parked Bills, Tab Switcher */}
-      <div className="bg-white px-3 py-2 rounded-lg border border-surface-border flex flex-nowrap items-center justify-between gap-2 shrink-0 overflow-x-auto">
-        <div className="flex items-center gap-2 shrink-0">
+      {/* COMPACT OPERATOR TOP BAR: Customer, Warehouse, Active Till, Tab Switcher */}
+      <div className="bg-white px-3.5 py-2.5 rounded-lg border border-surface-border flex flex-wrap items-center justify-between gap-2.5 shrink-0 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2.5">
           <div className="flex items-center gap-2 shrink-0">
-            <div className="h-7 w-7 rounded bg-brand-50 flex items-center justify-center text-brand-700">
-              <Receipt className="h-4 w-4" />
+            <div className="h-8 w-8 rounded-lg bg-brand-50 flex items-center justify-center text-brand-700 border border-brand-100">
+              <ShoppingBag className="h-4 w-4" />
             </div>
             <div>
-              <h1 className="text-sm font-bold text-charcoal-900 leading-tight">POS Billing</h1>
-              <p className="text-[10px] text-charcoal-500 hidden sm:block">FEFO Dispensing Terminal</p>
+              <h1 className="text-sm font-bold text-charcoal-900 leading-tight">POS Billing & Counter</h1>
+              <p className="text-[10px] text-charcoal-500 hidden sm:block">Dispense medicines & print bill</p>
             </div>
           </div>
 
@@ -1268,12 +1269,12 @@ export const SalesPage: React.FC = () => {
 
           {/* Customer Selection Combobox */}
           {activeTab === 'POS' && (
-            <div className="w-52 lg:w-60 shrink-0">
+            <div className="w-56 lg:w-64 shrink-0">
               <Combobox
                 options={customerOptions}
                 value={selectedCustomerId}
                 onChange={handleCustomerChange}
-                placeholder="Customer (F3)..."
+                placeholder="Select Customer / Khata (F3)..."
                 isClearable={false}
                 inputClassName="h-8 text-xs font-semibold"
                 id="pos-customer-select"
@@ -1281,17 +1282,36 @@ export const SalesPage: React.FC = () => {
             </div>
           )}
 
+          {/* Warehouse Selector */}
+          {activeTab === 'POS' && (
+            <div className="flex items-center gap-1.5 shrink-0 bg-surface-muted/50 px-2 py-0.5 rounded border border-surface-border">
+              <Building2 className="h-3.5 w-3.5 text-charcoal-500 shrink-0" />
+              <select
+                value={selectedWarehouseId}
+                onChange={(e) => setSelectedWarehouseId(e.target.value)}
+                className="h-7 bg-transparent text-xs font-semibold text-charcoal-800 focus:outline-none max-w-[140px] truncate cursor-pointer"
+                title="Dispatch Stock Warehouse"
+              >
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} {w.isDefault ? '• Main' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Delivery Address Selector - visible only for non-WALK_IN customers */}
           {activeTab === 'POS' && selectedCustomer && selectedCustomer.customerType !== 'WALK_IN' && (
-            <div className="flex items-center gap-1 shrink-0">
-              <MapPin className="h-3.5 w-3.5 text-charcoal-400 shrink-0" />
+            <div className="flex items-center gap-1 shrink-0 bg-surface-muted/50 px-2 py-0.5 rounded border border-surface-border">
+              <MapPin className="h-3.5 w-3.5 text-charcoal-500 shrink-0" />
               <select
                 value={selectedDeliveryAddressId}
                 onChange={(e) => handleDeliveryAddressChange(e.target.value)}
-                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[140px] truncate"
+                className="h-7 bg-transparent text-xs font-medium text-charcoal-800 focus:outline-none max-w-[140px] truncate cursor-pointer"
                 title="Delivery Destination Address"
               >
-                <option value="">No Delivery Address / Counter Sale</option>
+                <option value="">Counter / No Delivery</option>
                 {deliveryAddresses.map((addr) => (
                   <option key={addr.id} value={addr.id}>
                     {addr.title}: {addr.address}, {addr.city} {addr.isDefault ? '• Default' : ''}
@@ -1301,34 +1321,14 @@ export const SalesPage: React.FC = () => {
             </div>
           )}
 
-          {/* Warehouse Selector */}
+          {/* Salesman & Route (Progressive Selector for Delivery/Field orders) */}
           {activeTab === 'POS' && (
-            <div className="flex items-center gap-1 shrink-0">
-              <Building2 className="h-3.5 w-3.5 text-charcoal-400 shrink-0" />
-              <select
-                value={selectedWarehouseId}
-                onChange={(e) => setSelectedWarehouseId(e.target.value)}
-                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[130px] truncate"
-                title="Dispatch Warehouse"
-              >
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} {w.isDefault ? '• Default' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Salesman Selector */}
-          {activeTab === 'POS' && (
-            <div className="flex items-center gap-1 shrink-0">
-              <UserCheck className="h-3.5 w-3.5 text-charcoal-400 shrink-0" />
+            <div className="flex items-center gap-1 shrink-0 text-xs">
               <select
                 value={selectedSalesmanId}
                 onChange={(e) => setSelectedSalesmanId(e.target.value)}
-                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[120px] truncate"
-                title="Assigned Salesman"
+                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-700 focus:outline-none max-w-[120px] truncate"
+                title="Assigned Sales Representative"
               >
                 <option value="">No Salesman</option>
                 {salesmen.map((sm) => (
@@ -1337,22 +1337,17 @@ export const SalesPage: React.FC = () => {
                   </option>
                 ))}
               </select>
-            </div>
-          )}
 
-          {/* Route Selector */}
-          {activeTab === 'POS' && (
-            <div className="flex items-center gap-1 shrink-0">
               <select
                 value={selectedRouteId}
                 onChange={(e) => handleRouteChange(e.target.value)}
-                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[110px] truncate"
+                className="h-8 px-2 rounded border border-surface-border bg-white text-xs font-medium text-charcoal-700 focus:outline-none max-w-[110px] truncate"
                 title="Assigned Route"
               >
                 <option value="">No Route</option>
                 {routes.map((rt) => (
                   <option key={rt.id} value={rt.id}>
-                    {rt.name} ({rt.code})
+                    {rt.name}
                   </option>
                 ))}
               </select>
@@ -1361,25 +1356,25 @@ export const SalesPage: React.FC = () => {
         </div>
 
         {/* Right Tab Controls & Parked Drafts Indicator */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {activeTillSession ? (
             <div
               className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold"
-              title={`Active Till: ${activeTillSession.sessionNumber}`}
+              title="Cash Drawer: Open"
             >
               <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <Wallet className="h-3.5 w-3.5 text-emerald-600" />
-              <span>Till: {activeTillSession.sessionNumber}</span>
+              <span>Cash Drawer: Open</span>
             </div>
           ) : (
             <button
               onClick={() => setIsQuickOpenTillModalOpen(true)}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold hover:bg-amber-100 transition-colors"
-              title="No active till session. Click to open."
+              title="Cash drawer is closed. Click to open."
             >
               <div className="h-2 w-2 rounded-full bg-amber-500" />
               <Wallet className="h-3.5 w-3.5 text-amber-600" />
-              <span>No Till (Open)</span>
+              <span>Open Cash Drawer</span>
             </button>
           )}
 
@@ -1387,10 +1382,10 @@ export const SalesPage: React.FC = () => {
             <button
               onClick={() => setActiveTab('INVOICES')}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold hover:bg-amber-100 transition-colors"
-              title="View Parked Drafts"
+              title="View Parked / Hold Bills"
             >
               <Clock className="h-3.5 w-3.5 text-amber-600" />
-              <span>Parked: {parkedDraftsCount}</span>
+              <span>Hold Bills: {parkedDraftsCount}</span>
             </button>
           )}
 
@@ -1481,12 +1476,12 @@ export const SalesPage: React.FC = () => {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-surface-muted/60 sticky top-0 z-10 border-b border-surface-border text-[10px] text-charcoal-600 uppercase font-bold tracking-wider">
                     <tr>
-                      <th className="py-2 px-3 w-[26%]">Product</th>
-                      <th className="py-2 px-2.5 w-[14%]">Batch</th>
+                      <th className="py-2 px-3 w-[26%]">Item / Medicine</th>
+                      <th className="py-2 px-2.5 w-[14%]">Batch #</th>
                       <th className="py-2 px-2 w-[10%]">Expiry</th>
-                      <th className="py-2 px-2 text-center w-[9%]">Qty</th>
-                      <th className="py-2 px-2 text-center w-[7%]">Bonus</th>
-                      <th className="py-2 px-2.5 text-right w-[11%]">Price (PKR)</th>
+                      <th className="py-2 px-2 text-center w-[9%]">Qty (Packs)</th>
+                      <th className="py-2 px-2 text-center w-[7%]" title="Free / Scheme Bonus Units">Bonus</th>
+                      <th className="py-2 px-2.5 text-right w-[11%]">Rate / TP (PKR)</th>
                       <th className="py-2 px-2 text-right w-[9%]">Disc %</th>
                       <th className="py-2 px-3 text-right w-[11%]">Total (PKR)</th>
                       <th className="py-2 px-2 text-center w-[3%]"></th>
@@ -1763,7 +1758,7 @@ export const SalesPage: React.FC = () => {
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="block text-[10px] text-charcoal-400 uppercase font-semibold">Current Balance</span>
+                    <span className="block text-[10px] text-charcoal-400 uppercase font-semibold">Customer Balance (Udhaar)</span>
                     <span
                       className={`font-bold ${
                         Number(selectedCustomer.currentBalance) > 0 ? 'text-amber-700' : 'text-emerald-700'
@@ -1846,10 +1841,10 @@ export const SalesPage: React.FC = () => {
                   size="md"
                   onClick={handleOpenTender}
                   disabled={cartItems.length === 0 || isPosting}
-                  className="w-full h-10 text-xs font-bold shadow-sm flex items-center justify-center gap-2"
+                  className="w-full h-10 text-xs font-bold shadow-sm flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white"
                 >
                   <CreditCard className="h-4 w-4" />
-                  <span>F9 Payment</span>
+                  <span>Pay / Complete Sale (F9)</span>
                 </Button>
 
                 <Button
@@ -1860,7 +1855,7 @@ export const SalesPage: React.FC = () => {
                   className="w-full h-8 text-xs font-semibold text-charcoal-700 flex items-center justify-center gap-1.5"
                 >
                   <Clock className="h-3.5 w-3.5 text-charcoal-500" />
-                  <span>Park Bill (F4)</span>
+                  <span>Hold / Park Bill (F4)</span>
                 </Button>
               </div>
             </Card>
@@ -2117,8 +2112,8 @@ export const SalesPage: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
                     <div>
-                      <p className="text-xs font-bold text-amber-900">No Open Till Session</p>
-                      <p className="text-[11px] text-amber-700">Open a till session with float to accept cash transactions.</p>
+                      <p className="text-xs font-bold text-amber-900">Cash Drawer is Closed</p>
+                      <p className="text-[11px] text-amber-700">Open cash drawer to record cash payments and change.</p>
                     </div>
                   </div>
                   <Button
@@ -2128,7 +2123,7 @@ export const SalesPage: React.FC = () => {
                     onClick={() => setIsQuickOpenTillModalOpen(true)}
                   >
                     <Wallet className="h-3.5 w-3.5 mr-1" />
-                    Open Till
+                    Open Cash Drawer
                   </Button>
                 </div>
               )}
@@ -2295,7 +2290,7 @@ export const SalesPage: React.FC = () => {
                       </span>
                     </div>
                     <div className="p-2.5 rounded bg-white border border-surface-border">
-                      <span className="block text-[10px] font-bold text-charcoal-500 uppercase">Current Ledger</span>
+                      <span className="block text-[10px] font-bold text-charcoal-500 uppercase">Customer Balance (Udhaar)</span>
                       <span
                         className={clsx(
                           'font-bold text-xs',

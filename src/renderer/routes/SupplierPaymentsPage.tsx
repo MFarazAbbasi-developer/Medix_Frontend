@@ -127,7 +127,7 @@ export const SupplierPaymentsPage: React.FC = () => {
         endDate: endDate || undefined,
       });
 
-      setPayments(res.data || res.items || []);
+      setPayments(res.items || []);
       setTotalRecords(res.total || 0);
       setTotalPages(res.totalPages || 1);
       setSummary({
@@ -766,7 +766,7 @@ export const SupplierPaymentsPage: React.FC = () => {
                   <div className="p-3 bg-teal-50/60 border border-teal-100 rounded-lg flex items-center justify-between">
                     <div>
                       <div className="text-[11px] font-medium text-teal-800">
-                        Current Outstanding Payable
+                        Supplier Balance Payable (Khata)
                       </div>
                       <div className="text-base font-bold text-teal-950">
                         Rs. {Number(selectedSupplier.currentBalance || 0).toLocaleString('en-PK', {
@@ -916,7 +916,7 @@ export const SupplierPaymentsPage: React.FC = () => {
                       className="flex items-center gap-1.5 text-xs text-teal-700 border-teal-200 hover:bg-teal-50"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-                      <span>FIFO Auto-Allocate</span>
+                      <span>Auto-Settle Oldest Invoices (FIFO)</span>
                     </Button>
                   )}
                 </div>

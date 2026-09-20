@@ -663,7 +663,7 @@ export const PurchasingPage: React.FC = () => {
             <h1 className="text-xl font-bold text-charcoal-900">Purchasing & Goods Receiving</h1>
           </div>
           <p className="text-xs text-charcoal-500 mt-1">
-            Complete pharma procurement: Purchase Orders → Physical GRN Receipts → Batch & Stock Realization → Supplier Ledger
+            Receive Stock → Select Supplier → Enter Items → Check → Complete
           </p>
         </div>
 
@@ -1132,7 +1132,7 @@ export const PurchasingPage: React.FC = () => {
                     Goods Receiving Note (GRN) Entry Dock
                   </h2>
                   <p className="text-[11px] text-charcoal-500">
-                    Capture batches, regulatory expiry, landed purchase cost, and TP/MRP
+                    Receive Stock → Select Supplier → Enter Items → Check → Complete (Capture batches, regulatory expiry, landed purchase cost, and TP/MRP)
                   </p>
                 </div>
               </div>
